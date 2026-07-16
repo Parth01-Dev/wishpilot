@@ -172,6 +172,20 @@
   box-shadow: 0 0 0 3px var(--wp-accent-soft);
 }
 
+.inputError {
+  border-color: rgba(248, 113, 113, 0.7);
+}
+
+.inputError:focus {
+  border-color: rgba(248, 113, 113, 0.9);
+  box-shadow: 0 0 0 3px rgba(248, 113, 113, 0.15);
+}
+
+.labelError {
+  font-size: 0.8rem;
+  color: #fca5a5;
+}
+
 .button {
   display: inline-flex;
   align-items: center;
@@ -204,6 +218,22 @@
 
 .button:active {
   transform: translateY(0);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.button:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.button:disabled .buttonArrow {
+  transform: none;
 }
 
 .buttonArrow {

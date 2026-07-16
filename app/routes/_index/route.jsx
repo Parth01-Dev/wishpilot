@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { redirect, Form, useLoaderData } from "react-router";
 import { login } from "../../shopify.server";
+import { isValidShopDomain, normalizeShopDomain } from "../../utils/shopDomain";
 import styles from "./styles.module.css";
 
 export const loader = async ({ request }) => {
@@ -35,6 +37,24 @@ const FEATURES = [
 
 export default function App() {
   const { showForm } = useLoaderData();
+  const [shop, setShop] = useState("");
+  const [touched, setTouched] = useState(false);
+
+  const shopIsValid = isValidShopDomain(shop);
+  const showShopError = touched && shop.trim() !== "" && !shopIsValid;
+
+  function handleSubmit(event) {
+    if (!shopIsValid) {
+      event.preventDefault();
+      setTouched(true);
+      return;
+    }
+
+    const shopInput = event.currentTarget.elements.namedItem("shop");
+    if (shopInput && "value" in shopInput) {
+      shopInput.value = normalizeShopDomain(shop);
+    }
+  }
 
   return (
     <div className={styles.page}>
@@ -53,22 +73,43 @@ export default function App() {
           </p>
 
           {showForm && (
-            <Form className={styles.form} method="post" action="/auth/login">
+            <Form
+              className={styles.form}
+              method="post"
+              action="/auth/login"
+              onSubmit={handleSubmit}
+            >
               <div className={styles.formCard}>
                 <label className={styles.label}>
                   <span className={styles.labelTitle}>Shop domain</span>
                   <input
-                    className={styles.input}
+                    className={`${styles.input}${showShopError ? ` ${styles.inputError}` : ""}`}
                     type="text"
                     name="shop"
+                    value={shop}
+                    onChange={(event) => setShop(event.target.value)}
+                    onBlur={() => setTouched(true)}
                     placeholder="your-store.myshopify.com"
                     autoComplete="url"
+                    required
+                    aria-invalid={showShopError}
+                    aria-describedby={showShopError ? "shop-error" : undefined}
                   />
-                  <span className={styles.labelHint}>
-                    Enter your .myshopify.com store URL to continue.
-                  </span>
+                  {showShopError ? (
+                    <span id="shop-error" className={styles.labelError}>
+                      Enter a valid shop domain, like your-store.myshopify.com
+                    </span>
+                  ) : (
+                    <span className={styles.labelHint}>
+                      Enter your .myshopify.com store URL to continue.
+                    </span>
+                  )}
                 </label>
-                <button className={styles.button} type="submit">
+                <button
+                  className={styles.button}
+                  type="submit"
+                  disabled={!shopIsValid}
+                >
                   Open WishPilot
                   <span className={styles.buttonArrow} aria-hidden="true">
                     →

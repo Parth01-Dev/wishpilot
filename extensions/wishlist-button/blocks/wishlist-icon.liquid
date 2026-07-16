@@ -1,0 +1,44 @@
+{% comment %}
+  WishPilot — Header wishlist icon with count.
+{% endcomment %}
+
+{% assign show_count = block.settings.show_count %}
+{% assign wishlist_url = block.settings.wishlist_page_url | default: '/pages/wishlist' %}
+
+<a
+  href="{{ wishlist_url }}"
+  class="wishpilot-header"
+  data-wishpilot-header
+  data-customer-id="{% if customer %}{{ customer.id }}{% endif %}"
+  aria-label="Wishlist"
+  {{ block.shopify_attributes }}
+>
+  <span class="wishpilot-header__icon" aria-hidden="true">❤️</span>
+  {% if show_count %}
+    <span class="wishpilot-header__count" data-wishpilot-count>0</span>
+  {% endif %}
+</a>
+
+{% schema %}
+{
+  "name": "Wishlist Icon",
+  "target": "section",
+  "stylesheet": "wishpilot.css",
+  "javascript": "wishpilot-header.js",
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "show_count",
+      "label": "Show Wishlist Count",
+      "default": true
+    },
+    {
+      "type": "text",
+      "id": "wishlist_page_url",
+      "label": "Wishlist page URL",
+      "default": "/pages/wishlist",
+      "info": "Create a page and add the Wishlist Page section, or use this path."
+    }
+  ]
+}
+{% endschema %}

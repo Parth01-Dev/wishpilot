@@ -1,0 +1,74 @@
+{% comment %}
+  WishPilot — Storefront wishlist page section.
+{% endcomment %}
+
+<section
+  class="wishpilot-page"
+  data-wishpilot-page
+  data-customer-id="{% if customer %}{{ customer.id }}{% endif %}"
+  data-customer-email="{% if customer %}{{ customer.email }}{% endif %}"
+>
+  <div class="wishpilot-page__header">
+    <h1 class="wishpilot-page__title">{{ section.settings.heading }}</h1>
+    <p class="wishpilot-page__subtitle">{{ section.settings.subtitle }}</p>
+  </div>
+
+  {% unless customer %}
+    <div class="wishpilot-page__login" data-wishpilot-login-prompt>
+      <p>Sign in to view and manage your wishlist.</p>
+      <a href="{{ routes.account_login_url }}" class="wishpilot-page__login-btn">Sign in</a>
+    </div>
+  {% endunless %}
+
+  <div class="wishpilot-page__toolbar">
+    <input
+      type="search"
+      class="wishpilot-page__search"
+      data-wishpilot-search
+      placeholder="Search wishlist…"
+      aria-label="Search wishlist"
+    />
+    <select class="wishpilot-page__sort" data-wishpilot-sort aria-label="Sort">
+      <option value="newest">Newest</option>
+      <option value="oldest">Oldest</option>
+      <option value="alphabetical">Alphabetical</option>
+      <option value="price">Price</option>
+      <option value="vendor">Vendor</option>
+    </select>
+  </div>
+
+  <div class="wishpilot-page__grid" data-wishpilot-grid>
+    <p class="wishpilot-page__loading" data-wishpilot-loading>Loading wishlist…</p>
+  </div>
+
+  <div class="wishpilot-page__pagination" data-wishpilot-pagination hidden>
+    <button type="button" data-wishpilot-prev>Previous</button>
+    <span data-wishpilot-page-label>Page 1</span>
+    <button type="button" data-wishpilot-next>Next</button>
+  </div>
+
+  <p class="wishpilot-page__toast" data-wishpilot-toast hidden></p>
+</section>
+
+{% schema %}
+{
+  "name": "Wishlist Page",
+  "target": "section",
+  "stylesheet": "wishpilot.css",
+  "javascript": "wishpilot-page.js",
+  "settings": [
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "My Wishlist"
+    },
+    {
+      "type": "text",
+      "id": "subtitle",
+      "label": "Subtitle",
+      "default": "Products you have saved for later."
+    }
+  ]
+}
+{% endschema %}

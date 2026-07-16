@@ -1,0 +1,19 @@
+{% comment %}
+  WishPilot — App embed. Enables pasteable theme buttons on collection cards.
+  Merchants: Theme settings → App embeds → enable WishPilot.
+{% endcomment %}
+
+{% schema %}
+{
+  "name": "WishPilot",
+  "target": "body",
+  "stylesheet": "wishpilot.css",
+  "javascript": "wishpilot-add.js",
+  "settings": [
+    {
+      "type": "paragraph",
+      "content": "Required for the copy-paste wishlist button on collection product cards. Enable this embed, then paste the Liquid snippet from the WishPilot app Settings page into your product card code."
+    }
+  ]
+}
+{% endschema %}

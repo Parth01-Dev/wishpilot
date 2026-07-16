@@ -2,7 +2,7 @@
 
 client_id = "e55b8a0b1c2f6468ec27d5e9cdfecf8b"
 name = "WishPilot"
-application_url = "https://example.com"
+application_url = "https://victorious-wishpilot-production.up.railway.app"
 embedded = true
 
 [access_scopes]
@@ -26,8 +26,7 @@ api_version = "2026-10"
   topics = [ "app/scopes_update" ]
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://victorious-wishpilot-production.up.railway.app/api/auth" ]
 
 [build]
-include_config_on_deploy = true
 automatically_update_urls_on_dev = true

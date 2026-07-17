@@ -1,11 +1,10 @@
 import { EmptyState } from "./EmptyState";
-import { customerWishlistPath } from "../utils/customerId";
 import admin from "../styles/admin.module.css";
 
 /**
  * Customers list — clean Swish-like curation rows.
  */
-export function CustomerTable({ customers = [], onRemove }) {
+export function CustomerTable({ customers = [], onOpen, onRemove }) {
   if (!customers.length) {
     return (
       <EmptyState
@@ -21,7 +20,9 @@ export function CustomerTable({ customers = [], onRemove }) {
         <div className={admin.cardHead}>
           <div>
             <h3 className={admin.cardTitle}>Customer wishlists</h3>
-            <p className={admin.cardHint}>Open a list to review or clear items</p>
+            <p className={admin.cardHint}>
+              Open a list to review saved products
+            </p>
           </div>
         </div>
         <div className={admin.cardBody}>
@@ -53,7 +54,7 @@ export function CustomerTable({ customers = [], onRemove }) {
                 <s-stack direction="inline" gap="small">
                   <s-button
                     variant="secondary"
-                    href={customerWishlistPath(customer.customerId)}
+                    onClick={() => onOpen?.(customer)}
                   >
                     View list
                   </s-button>

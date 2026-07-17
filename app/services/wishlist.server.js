@@ -1,4 +1,5 @@
 import prisma from "../db.server";
+import { customerIdMatchers } from "../utils/customerId";
 
 const LOW_STOCK_THRESHOLD = 5;
 
@@ -313,20 +314,32 @@ export async function listWishlistCustomers(
 
 /**
  * Wishlist items for a single customer.
+ * Matches both GID and numeric customer IDs.
  */
 export async function getCustomerWishlist(shop, customerId) {
+  const ids = customerIdMatchers(customerId);
+
   return prisma.wishlist.findMany({
-    where: { shop, customerId },
+    where: {
+      shop,
+      customerId: ids.length === 1 ? ids[0] : { in: ids },
+    },
     orderBy: { createdAt: "desc" },
   });
 }
 
 /**
  * Remove all wishlist items for a customer.
+ * Matches both GID and numeric customer IDs.
  */
 export async function removeCustomerWishlist(shop, customerId) {
+  const ids = customerIdMatchers(customerId);
+
   return prisma.wishlist.deleteMany({
-    where: { shop, customerId },
+    where: {
+      shop,
+      customerId: ids.length === 1 ? ids[0] : { in: ids },
+    },
   });
 }
 

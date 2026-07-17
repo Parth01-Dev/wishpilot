@@ -1,4 +1,5 @@
 import { EmptyState } from "./EmptyState";
+import { customerWishlistPath } from "../utils/customerId";
 import admin from "../styles/admin.module.css";
 
 /**
@@ -52,7 +53,7 @@ export function CustomerTable({ customers = [], onRemove }) {
                 <s-stack direction="inline" gap="small">
                   <s-button
                     variant="secondary"
-                    href={`/app/customers/${encodeURIComponent(customer.customerId)}`}
+                    href={customerWishlistPath(customer.customerId)}
                   >
                     View list
                   </s-button>

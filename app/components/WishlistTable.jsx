@@ -2,15 +2,15 @@ import { EmptyState } from "./EmptyState";
 import admin from "../styles/admin.module.css";
 
 /**
- * Merchant wishlist index — unique products in a responsive 3-column card grid.
+ * Product demand cards — Swish-style saves emphasis.
  */
 export function WishlistTable({ products = [], onOpen, onRemove }) {
   if (!products.length) {
     return (
       <EmptyState
         heading="No wishlist items yet"
-        description="When customers save products, they will appear here."
-        actionLabel="View theme extension"
+        description="When customers save products, demand insights will appear here."
+        actionLabel="Open Settings"
         actionHref="/app/settings"
       />
     );
@@ -41,68 +41,52 @@ export function WishlistTable({ products = [], onOpen, onRemove }) {
                 <div className={admin.productMedia}>
                   {item.productImage ? (
                     <img src={item.productImage} alt={item.productTitle} />
-                  ) : (
-                    <div
-                      style={{
-                        display: "grid",
-                        placeItems: "center",
-                        height: "100%",
-                        color: "#87909e",
-                        fontSize: "0.85rem",
-                      }}
-                    >
-                      No image
-                    </div>
-                  )}
+                  ) : null}
                 </div>
               </s-clickable>
 
               <div className={admin.productBody}>
-                <s-clickable onClick={() => onOpen?.(item)} padding="none">
-                  <s-stack gap="small-100">
-                    <h3 className={admin.productTitle}>{item.productTitle}</h3>
+                <div className={admin.productTop}>
+                  <s-clickable onClick={() => onOpen?.(item)} padding="none">
+                    <h3 className={admin.productName}>{item.productTitle}</h3>
                     <p className={admin.productMeta}>
-                      {priceLabel} · {item.vendor || "No vendor"}
+                      {priceLabel} · {item.vendor || "No vendor"} · Stock{" "}
+                      {inventory}
                     </p>
-                  </s-stack>
-                </s-clickable>
+                  </s-clickable>
+                  <div className={admin.savesPill}>
+                    <p className={admin.savesPillStrong}>
+                      {item.customerCount}
+                    </p>
+                    <p className={admin.savesPillLabel}>saves</p>
+                  </div>
+                </div>
 
-                <s-stack direction="inline" gap="small" alignItems="center">
-                  <s-badge tone="info">{item.customerCount} customers</s-badge>
-                  <s-badge tone={tone}>{status}</s-badge>
-                </s-stack>
+                <s-badge tone={tone}>{status}</s-badge>
+              </div>
 
-                <p className={admin.productMeta}>Inventory: {inventory}</p>
-                <p className={admin.productMeta}>
-                  Last added:{" "}
-                  {item.lastAddedAt
-                    ? new Date(item.lastAddedAt).toLocaleDateString()
-                    : "—"}
-                </p>
-
-                <s-stack direction="inline" gap="small">
-                  <s-button variant="primary" onClick={() => onOpen?.(item)}>
-                    Details
+              <div className={admin.productFooter}>
+                <s-button variant="primary" onClick={() => onOpen?.(item)}>
+                  Details
+                </s-button>
+                {productAdminId ? (
+                  <s-button
+                    variant="tertiary"
+                    href={`shopify://admin/products/${productAdminId}`}
+                    target="_blank"
+                  >
+                    View product
                   </s-button>
-                  {productAdminId ? (
-                    <s-button
-                      variant="tertiary"
-                      href={`shopify://admin/products/${productAdminId}`}
-                      target="_blank"
-                    >
-                      View
-                    </s-button>
-                  ) : null}
-                  {onRemove ? (
-                    <s-button
-                      tone="critical"
-                      variant="secondary"
-                      onClick={() => onRemove(item)}
-                    >
-                      Remove
-                    </s-button>
-                  ) : null}
-                </s-stack>
+                ) : null}
+                {onRemove ? (
+                  <s-button
+                    tone="critical"
+                    variant="tertiary"
+                    onClick={() => onRemove(item)}
+                  >
+                    Remove
+                  </s-button>
+                ) : null}
               </div>
             </article>
           );

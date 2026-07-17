@@ -2,7 +2,7 @@ import { EmptyState } from "./EmptyState";
 import admin from "../styles/admin.module.css";
 
 /**
- * Customers who have saved wishlist items.
+ * Customers list — clean Swish-like curation rows.
  */
 export function CustomerTable({ customers = [], onRemove }) {
   if (!customers.length) {
@@ -16,63 +16,59 @@ export function CustomerTable({ customers = [], onRemove }) {
 
   return (
     <s-section accessibilityLabel="Customers list">
-      <div className={admin.panel}>
-        <div className={admin.panelHeader}>
+      <div className={admin.card}>
+        <div className={admin.cardHead}>
           <div>
-            <h3 className={admin.panelTitle}>Wishlist customers</h3>
-            <p className={admin.panelHint}>
-              People who have saved one or more products
-            </p>
+            <h3 className={admin.cardTitle}>Customer wishlists</h3>
+            <p className={admin.cardHint}>Open a list to review or clear items</p>
           </div>
         </div>
-        <div className={admin.panelBody}>
-          <div className={admin.listStack}>
-            {customers.map((customer) => {
-              const idLabel =
-                customer.customerId?.replace("gid://shopify/Customer/", "") ||
-                "—";
-              const email = customer.customerEmail || "No email";
-              const initials = (customer.customerEmail || idLabel || "C")
-                .replace(/[^a-zA-Z0-9]/g, "")
-                .slice(0, 2)
-                .toUpperCase();
+        <div className={admin.cardBody}>
+          {customers.map((customer) => {
+            const idLabel =
+              customer.customerId?.replace("gid://shopify/Customer/", "") ||
+              "—";
+            const email = customer.customerEmail || "No email";
+            const initials = (customer.customerEmail || idLabel || "C")
+              .replace(/[^a-zA-Z0-9]/g, "")
+              .slice(0, 2)
+              .toUpperCase();
 
-              return (
-                <div key={customer.customerId} className={admin.listRow}>
-                  <span className={admin.avatar} aria-hidden="true">
-                    {initials}
-                  </span>
-                  <s-stack gap="small-100" inlineSize="100%">
-                    <s-text type="strong">{email}</s-text>
-                    <s-text color="subdued">ID: {idLabel}</s-text>
-                  </s-stack>
-                  <s-badge>{customer.wishlistCount} items</s-badge>
-                  <s-text color="subdued">
-                    {customer.lastWishlistDate
-                      ? new Date(customer.lastWishlistDate).toLocaleDateString()
-                      : "—"}
-                  </s-text>
-                  <s-stack direction="inline" gap="small">
-                    <s-button
-                      variant="secondary"
-                      href={`/app/customers/${encodeURIComponent(customer.customerId)}`}
-                    >
-                      View Wishlist
-                    </s-button>
-                    {onRemove ? (
-                      <s-button
-                        tone="critical"
-                        variant="tertiary"
-                        onClick={() => onRemove(customer)}
-                      >
-                        Remove
-                      </s-button>
-                    ) : null}
-                  </s-stack>
+            return (
+              <div key={customer.customerId} className={admin.customerRow}>
+                <span className={admin.avatar} aria-hidden="true">
+                  {initials}
+                </span>
+                <div>
+                  <p className={admin.demandTitle}>{email}</p>
+                  <p className={admin.demandMeta}>Customer ID: {idLabel}</p>
                 </div>
-              );
-            })}
-          </div>
+                <div className={admin.demandCount}>
+                  <p className={admin.demandCountStrong}>
+                    {customer.wishlistCount}
+                  </p>
+                  <p className={admin.demandCountLabel}>saved</p>
+                </div>
+                <s-stack direction="inline" gap="small">
+                  <s-button
+                    variant="secondary"
+                    href={`/app/customers/${encodeURIComponent(customer.customerId)}`}
+                  >
+                    View list
+                  </s-button>
+                  {onRemove ? (
+                    <s-button
+                      tone="critical"
+                      variant="tertiary"
+                      onClick={() => onRemove(customer)}
+                    >
+                      Remove
+                    </s-button>
+                  ) : null}
+                </s-stack>
+              </div>
+            );
+          })}
         </div>
       </div>
     </s-section>

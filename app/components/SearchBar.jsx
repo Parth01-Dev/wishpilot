@@ -1,8 +1,5 @@
 import admin from "../styles/admin.module.css";
 
-/**
- * Search bar with optional field selector (product / vendor / customer).
- */
 export function SearchBar({
   value,
   searchBy = "product",

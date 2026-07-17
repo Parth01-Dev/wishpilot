@@ -60,13 +60,16 @@ export default function CustomersPage() {
 
   return (
     <s-page heading="Customers">
-      <s-section>
-        <div className={admin.pageIntro} style={{ marginBottom: "1rem" }}>
-          <p className={admin.pageEyebrow}>Audience</p>
-          <h2 className={admin.pageTitle}>{total} wishlist customers</h2>
-          <p className={admin.pageSubtitle}>
-            Review shoppers who saved products and jump into each wishlist.
-          </p>
+      <div className={admin.shell}>
+        <div className={admin.pageMeta}>
+          <div className={admin.pageMetaCopy}>
+            <p className={admin.kicker}>List management</p>
+            <h2 className={admin.title}>{total} customers</h2>
+            <p className={admin.subtitle}>
+              Browse and curate shopper wishlists from admin — the same way
+              premium wishlist apps manage lists.
+            </p>
+          </div>
         </div>
 
         <Form method="get">
@@ -85,21 +88,21 @@ export default function CustomersPage() {
             </s-stack>
           </div>
         </Form>
-      </s-section>
 
-      {isLoading ? (
-        <s-section>
-          <s-spinner accessibilityLabel="Loading customers" />
-        </s-section>
-      ) : (
-        <CustomerTable customers={customers} onRemove={handleRemove} />
-      )}
+        {isLoading ? (
+          <div className={admin.card}>
+            <div className={admin.cardBody}>
+              <s-spinner accessibilityLabel="Loading customers" />
+            </div>
+          </div>
+        ) : (
+          <CustomerTable customers={customers} onRemove={handleRemove} />
+        )}
 
-      {totalPages > 1 ? (
-        <s-section>
+        {totalPages > 1 ? (
           <Pagination page={page} totalPages={totalPages} baseUrl={baseUrl} />
-        </s-section>
-      ) : null}
+        ) : null}
+      </div>
     </s-page>
   );
 }

@@ -161,40 +161,43 @@ export default function WishlistPage() {
         Theme setup
       </s-button>
 
-      <s-section>
-        <div className={admin.pageIntro} style={{ marginBottom: "1rem" }}>
-          <p className={admin.pageEyebrow}>Catalog</p>
-          <h2 className={admin.pageTitle}>Saved products</h2>
-          <p className={admin.pageSubtitle}>
-            {total} unique products wishlisted by your customers. Open details
-            to see who saved each item.
-          </p>
+      <div className={admin.shell}>
+        <div className={admin.pageMeta}>
+          <div className={admin.pageMetaCopy}>
+            <p className={admin.kicker}>Product demand</p>
+            <h2 className={admin.title}>{total} wished products</h2>
+            <p className={admin.subtitle}>
+              Browse demand by product. Open any card to see who saved it and
+              manage list entries.
+            </p>
+          </div>
         </div>
+
         <Form method="get">
           <SearchBar value={search} searchBy={searchBy} />
         </Form>
-      </s-section>
 
-      {isLoading ? (
-        <s-section>
-          <s-stack gap="base">
-            <s-spinner accessibilityLabel="Loading wishlist" />
-            <s-text>Loading wishlist…</s-text>
-          </s-stack>
-        </s-section>
-      ) : (
-        <WishlistTable
-          products={products}
-          onOpen={handleOpen}
-          onRemove={handleRemoveProduct}
-        />
-      )}
+        {isLoading ? (
+          <div className={admin.card}>
+            <div className={admin.cardBody}>
+              <s-stack gap="base">
+                <s-spinner accessibilityLabel="Loading wishlist" />
+                <s-text>Loading wishlist…</s-text>
+              </s-stack>
+            </div>
+          </div>
+        ) : (
+          <WishlistTable
+            products={products}
+            onOpen={handleOpen}
+            onRemove={handleRemoveProduct}
+          />
+        )}
 
-      {totalPages > 1 ? (
-        <s-section>
+        {totalPages > 1 ? (
           <Pagination page={page} totalPages={totalPages} baseUrl={baseUrl} />
-        </s-section>
-      ) : null}
+        ) : null}
+      </div>
 
       <WishlistProductModal
         openProduct={openProduct}

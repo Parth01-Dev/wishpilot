@@ -23,6 +23,7 @@ export const loader = async ({ request }) => {
         ...p,
         inventory: live?.inventory ?? null,
         status: live?.status ?? null,
+        productImage: live?.image || null,
       };
     })
     .filter(
@@ -49,89 +50,100 @@ export default function AnalyticsPage() {
 
   return (
     <s-page heading="Analytics">
-      <s-section>
-        <div className={admin.pageIntro} style={{ marginBottom: "0.5rem" }}>
-          <p className={admin.pageEyebrow}>Insights</p>
-          <h2 className={admin.pageTitle}>Wishlist analytics</h2>
-          <p className={admin.pageSubtitle}>
-            Track growth, top products, and the customers saving the most.
-          </p>
+      <div className={admin.shell}>
+        <div className={admin.pageMeta}>
+          <div className={admin.pageMetaCopy}>
+            <p className={admin.kicker}>Insights</p>
+            <h2 className={admin.title}>Wishlist analytics</h2>
+            <p className={admin.subtitle}>
+              Track product demand, engagement, and low-stock wishlist signals.
+            </p>
+          </div>
         </div>
-      </s-section>
 
-      {!hasData ? (
-        <EmptyState
-          heading="No analytics yet"
-          description="Charts populate once customers add products to their wishlist."
-          actionLabel="Open Wishlist"
-          actionHref="/app/wishlist"
-        />
-      ) : (
-        <>
-          <Charts
-            growth={growth}
-            topProducts={topProducts}
-            activeCustomers={mostActiveCustomers}
+        {!hasData ? (
+          <EmptyState
+            heading="No analytics yet"
+            description="Charts populate once customers add products to their wishlist."
+            actionLabel="Open Wishlist"
+            actionHref="/app/wishlist"
           />
+        ) : (
+          <>
+            <Charts
+              growth={growth}
+              topProducts={topProducts}
+              activeCustomers={mostActiveCustomers}
+            />
 
-          <div className={admin.splitEqual}>
-            <div className={admin.panel}>
-              <div className={admin.panelHeader}>
-                <div>
-                  <h3 className={admin.panelTitle}>Recently added</h3>
-                  <p className={admin.panelHint}>Latest wishlist activity</p>
+            <div className={admin.grid2Equal}>
+              <div className={admin.card}>
+                <div className={admin.cardHead}>
+                  <div>
+                    <h3 className={admin.cardTitle}>Recent activity</h3>
+                    <p className={admin.cardHint}>Latest wishlist saves</p>
+                  </div>
                 </div>
-              </div>
-              <div className={admin.panelBody}>
-                <div className={admin.listStack}>
+                <div className={admin.cardBody}>
                   {recentlyAdded.map((item) => (
-                    <div key={item.id} className={admin.listRow}>
-                      <s-stack gap="small-100" inlineSize="100%">
-                        <s-text type="strong">{item.productTitle}</s-text>
-                        <s-text color="subdued">
+                    <div key={item.id} className={admin.demandRow}>
+                      <div>
+                        <p className={admin.demandTitle}>{item.productTitle}</p>
+                        <p className={admin.demandMeta}>
                           {new Date(item.createdAt).toLocaleString()}
-                        </s-text>
-                      </s-stack>
+                        </p>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
-            </div>
 
-            <div className={admin.panel}>
-              <div className={admin.panelHeader}>
-                <div>
-                  <h3 className={admin.panelTitle}>Low stock wishlist</h3>
-                  <p className={admin.panelHint}>
-                    Popular products running low
-                  </p>
+              <div className={admin.card}>
+                <div className={admin.cardHead}>
+                  <div>
+                    <h3 className={admin.cardTitle}>Low stock demand</h3>
+                    <p className={admin.cardHint}>
+                      Popular products running low
+                    </p>
+                  </div>
+                </div>
+                <div className={admin.cardBody}>
+                  {lowStockProducts.length ? (
+                    lowStockProducts.map((product) => (
+                      <div key={product.productId} className={admin.demandRow}>
+                        <div className={admin.thumb}>
+                          {product.productImage ? (
+                            <img
+                              src={product.productImage}
+                              alt={product.productTitle}
+                            />
+                          ) : null}
+                        </div>
+                        <div>
+                          <p className={admin.demandTitle}>
+                            {product.productTitle}
+                          </p>
+                          <p className={admin.demandMeta}>
+                            {product.inventory} left
+                          </p>
+                        </div>
+                        <div className={admin.demandCount}>
+                          <p className={admin.demandCountStrong}>
+                            {product.count}
+                          </p>
+                          <p className={admin.demandCountLabel}>wishes</p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <s-paragraph>No low-stock wishlist products.</s-paragraph>
+                  )}
                 </div>
               </div>
-              <div className={admin.panelBody}>
-                {lowStockProducts.length ? (
-                  <div className={admin.listStack}>
-                    {lowStockProducts.map((product) => (
-                      <div key={product.productId} className={admin.listRow}>
-                        <s-stack gap="small-100" inlineSize="100%">
-                          <s-text type="strong">{product.productTitle}</s-text>
-                          <s-stack direction="inline" gap="small">
-                            <s-badge tone="warning">
-                              {product.inventory} left
-                            </s-badge>
-                            <s-badge>{product.count} wishes</s-badge>
-                          </s-stack>
-                        </s-stack>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <s-paragraph>No low-stock wishlist products.</s-paragraph>
-                )}
-              </div>
             </div>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </s-page>
   );
 }

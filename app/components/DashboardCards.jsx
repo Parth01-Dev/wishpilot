@@ -1,5 +1,5 @@
 /**
- * Dashboard metric cards — premium overview strip.
+ * Dashboard metric cards — Swish-style insight KPIs.
  */
 import admin from "../styles/admin.module.css";
 
@@ -10,78 +10,43 @@ export function DashboardCards({
   lowStockCount = 0,
 }) {
   return (
-    <s-section>
-      <div className={admin.pageIntro} style={{ marginBottom: "0.85rem" }}>
-        <p className={admin.pageEyebrow}>Performance</p>
-        <h2 className={admin.pageTitle}>Overview</h2>
-        <p className={admin.pageSubtitle}>
-          A quick snapshot of wishlist activity across your store.
-        </p>
-      </div>
-
-      <div className={admin.metricGrid}>
-        <MetricCard
-          href="/app/wishlist"
-          label="Wishlist items"
-          value={totalItems.toLocaleString()}
-          icon="♥"
-          iconClass={admin.metricIconRose}
-        />
-        <MetricCard
-          href="/app/customers"
-          label="Customers"
-          value={totalCustomers.toLocaleString()}
-          icon="◎"
-          iconClass={admin.metricIconTeal}
-        />
-        <MetricCard
-          href="/app/analytics"
-          label="Most wished"
-          value={mostWished?.productTitle || "—"}
-          icon="★"
-          iconClass={admin.metricIconIndigo}
-          badge={mostWished?.count ? `${mostWished.count} wishes` : null}
-          badgeTone="info"
-        />
-        <MetricCard
-          href="/app/analytics"
-          label="Low stock"
-          value={String(lowStockCount)}
-          icon="!"
-          iconClass={admin.metricIconAmber}
-          badge={lowStockCount > 0 ? "Needs attention" : "Healthy"}
-          badgeTone={lowStockCount > 0 ? "warning" : "success"}
-        />
-      </div>
-    </s-section>
+    <div className={admin.kpiRow}>
+      <Kpi
+        href="/app/wishlist"
+        label="Wishlist saves"
+        value={totalItems.toLocaleString()}
+        foot="Across all customers"
+      />
+      <Kpi
+        href="/app/customers"
+        label="Active customers"
+        value={totalCustomers.toLocaleString()}
+        foot="Shoppers with saved items"
+      />
+      <Kpi
+        href="/app/analytics"
+        label="Top demand"
+        value={mostWished?.count != null ? String(mostWished.count) : "0"}
+        foot={mostWished?.productTitle || "No product yet"}
+      />
+      <Kpi
+        href="/app/analytics"
+        label="Low stock alerts"
+        value={String(lowStockCount)}
+        foot={lowStockCount > 0 ? "Needs attention" : "Inventory healthy"}
+      />
+    </div>
   );
 }
 
-function MetricCard({
-  href,
-  label,
-  value,
-  icon,
-  iconClass,
-  badge,
-  badgeTone,
-}) {
+function Kpi({ href, label, value, foot }) {
   return (
-    <div className={admin.metricCard}>
-      <s-clickable href={href} padding="none">
-        <div className={admin.metricInner}>
-          <div className={admin.metricTop}>
-            <span className={`${admin.metricIcon} ${iconClass || ""}`}>
-              {icon}
-            </span>
-            {badge ? (
-              <s-badge tone={badgeTone || "info"}>{badge}</s-badge>
-            ) : null}
-          </div>
-          <p className={admin.metricLabel}>{label}</p>
-          <p className={admin.metricValue}>{value}</p>
-        </div>
-      </s-clickable>
-    </div>
+    <s-clickable href={href} padding="none">
+      <div className={admin.kpi}>
+        <p className={admin.kpiLabel}>{label}</p>
+        <p className={admin.kpiValue}>{value}</p>
+        <p className={admin.kpiFoot}>{foot}</p>
+      </div>
+    </s-clickable>
   );
 }

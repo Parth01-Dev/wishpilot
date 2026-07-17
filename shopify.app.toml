@@ -36,4 +36,3 @@ redirect_urls = [
 # Keep Partner Dashboard / app URLs on Railway forever.
 # Temporary *.trycloudflare.com tunnels from `shopify app dev` must NOT overwrite them.
 automatically_update_urls_on_dev = false
-include_config_on_deploy = true

@@ -295,88 +295,67 @@ export default function SettingsPage() {
         <ThemeSnippetSection />
       </div>
 
-      <div slot="aside" className={admin.asideStack}>
+      <s-section heading="Current setup" slot="aside">
         <div className={admin.card}>
-          <div
-            className={`${admin.statusBanner} ${
-              current.enableWishlist
-                ? admin.statusBannerOn
-                : admin.statusBannerOff
-            }`}
-          >
+          <div className={admin.statusBanner}>
             <div>
-              <p className={admin.statusBannerLabel}>Wishlist status</p>
-              <p className={admin.statusBannerTitle}>
-                {current.enableWishlist ? "Enabled" : "Disabled"}
+              <p className={admin.statusLabel}>Wishlist</p>
+              <p className={admin.statusValue}>
+                {current.enableWishlist ? "Live on storefront" : "Not enabled"}
               </p>
             </div>
             <s-badge tone={current.enableWishlist ? "success" : "attention"}>
-              {current.enableWishlist ? "Live" : "Off"}
+              {current.enableWishlist ? "On" : "Off"}
             </s-badge>
           </div>
-
           <div className={admin.cardBody}>
-            <dl className={admin.summaryList}>
-              <div className={admin.summaryItem}>
-                <dt className={admin.summaryLabel}>Button style</dt>
-                <dd className={admin.summaryValue}>
-                  {buttonStyleLabel(current.buttonStyle)}
+            <dl className={admin.metaList}>
+              <div className={admin.metaItem}>
+                <dt>Style</dt>
+                <dd>{buttonStyleLabel(current.buttonStyle)}</dd>
+              </div>
+              <div className={admin.metaItem}>
+                <dt>Position</dt>
+                <dd>{buttonPositionLabel(current.buttonPosition)}</dd>
+              </div>
+              <div className={admin.metaItem}>
+                <dt>Color</dt>
+                <dd className={admin.metaColor}>
+                  <span
+                    className={admin.colorSwatch}
+                    style={{ background: current.primaryColor || "#000" }}
+                    aria-hidden="true"
+                  />
+                  {current.primaryColor || "#000000"}
                 </dd>
               </div>
-              <div className={admin.summaryItem}>
-                <dt className={admin.summaryLabel}>Position</dt>
-                <dd className={admin.summaryValue}>
-                  {buttonPositionLabel(current.buttonPosition)}
-                </dd>
+              <div className={admin.metaItem}>
+                <dt>Guests</dt>
+                <dd>{current.allowGuestWishlist ? "Allowed" : "Off"}</dd>
               </div>
-              <div className={admin.summaryItem}>
-                <dt className={admin.summaryLabel}>Brand color</dt>
-                <dd className={admin.summaryValue}>
-                  <span className={admin.summaryColor}>
-                    <span
-                      className={admin.colorSwatch}
-                      style={{ background: current.primaryColor || "#000" }}
-                      aria-hidden="true"
-                    />
-                    {current.primaryColor || "#000000"}
-                  </span>
-                </dd>
-              </div>
-              <div className={admin.summaryItem}>
-                <dt className={admin.summaryLabel}>Guest wishlist</dt>
-                <dd className={admin.summaryValue}>
-                  {current.allowGuestWishlist ? "Allowed" : "Off"}
-                </dd>
-              </div>
-              <div className={admin.summaryItem}>
-                <dt className={admin.summaryLabel}>Heart icon</dt>
-                <dd className={admin.summaryValue}>
-                  {current.showHeartIcon ? "On" : "Off"}
-                </dd>
+              <div className={admin.metaItem}>
+                <dt>Count badge</dt>
+                <dd>{current.showWishlistCount ? "Shown" : "Hidden"}</dd>
               </div>
             </dl>
           </div>
         </div>
+      </s-section>
 
+      <s-section heading="Coming soon" slot="aside">
         <div className={admin.card}>
-          <div className={admin.cardHead}>
-            <div>
-              <h3 className={admin.cardTitle}>Coming soon</h3>
-              <p className={admin.cardHint}>Planned WishPilot features</p>
-            </div>
-          </div>
           <div className={admin.cardBody}>
-            <ul className={admin.comingSoonList}>
+            <ul className={admin.featureList}>
               {futureFeatures.slice(0, 4).map((feature) => (
-                <li key={feature.id} className={admin.comingSoonItem}>
-                  <p className={admin.comingSoonTitle}>{feature.title}</p>
-                  <p className={admin.comingSoonDesc}>{feature.description}</p>
+                <li key={feature.id} className={admin.featureItem}>
+                  <p className={admin.featureTitle}>{feature.title}</p>
+                  <p className={admin.featureDesc}>{feature.description}</p>
                 </li>
               ))}
             </ul>
           </div>
         </div>
-      </div>
+      </s-section>
     </s-page>
   );
 }

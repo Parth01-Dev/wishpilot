@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import Chart from "chart.js/auto";
+import admin from "../styles/admin.module.css";
 
 function useChart(configFactory, deps) {
   const canvasRef = useRef(null);
@@ -31,6 +32,33 @@ function useChart(configFactory, deps) {
   return canvasRef;
 }
 
+const chartDefaults = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: "#1a1c1d",
+      padding: 10,
+      cornerRadius: 8,
+      titleFont: { weight: "600" },
+    },
+  },
+  scales: {
+    x: {
+      grid: { color: "rgba(0,0,0,0.04)" },
+      ticks: { color: "#6d7175", font: { size: 11 } },
+      border: { display: false },
+    },
+    y: {
+      beginAtZero: true,
+      ticks: { precision: 0, color: "#6d7175", font: { size: 11 } },
+      grid: { color: "rgba(0,0,0,0.05)" },
+      border: { display: false },
+    },
+  },
+};
+
 /**
  * Wishlist analytics charts (Chart.js).
  */
@@ -44,21 +72,17 @@ export function Charts({ growth = [], topProducts = [], activeCustomers = [] }) 
           {
             label: "Wishlist items added",
             data: growth.map((g) => g.count),
-            borderColor: "#1a1a1a",
-            backgroundColor: "rgba(26, 26, 26, 0.08)",
+            borderColor: "#e11d48",
+            backgroundColor: "rgba(225, 29, 72, 0.1)",
             fill: true,
-            tension: 0.3,
+            tension: 0.35,
+            pointRadius: 3,
+            pointHoverRadius: 5,
+            borderWidth: 2.5,
           },
         ],
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          y: { beginAtZero: true, ticks: { precision: 0 } },
-        },
-      },
+      options: chartDefaults,
     }),
     [growth],
   );
@@ -76,17 +100,27 @@ export function Charts({ growth = [], topProducts = [], activeCustomers = [] }) 
           {
             label: "Wishes",
             data: topProducts.map((p) => p.count),
-            backgroundColor: "#5c6ac4",
+            backgroundColor: "#4f46e5",
+            borderRadius: 6,
+            barThickness: 16,
           },
         ],
       },
       options: {
+        ...chartDefaults,
         indexAxis: "y",
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
         scales: {
-          x: { beginAtZero: true, ticks: { precision: 0 } },
+          x: {
+            beginAtZero: true,
+            ticks: { precision: 0, color: "#6d7175", font: { size: 11 } },
+            grid: { color: "rgba(0,0,0,0.05)" },
+            border: { display: false },
+          },
+          y: {
+            grid: { display: false },
+            ticks: { color: "#6d7175", font: { size: 11 } },
+            border: { display: false },
+          },
         },
       },
     }),
@@ -104,45 +138,62 @@ export function Charts({ growth = [], topProducts = [], activeCustomers = [] }) 
           {
             label: "Items saved",
             data: activeCustomers.map((c) => c.count),
-            backgroundColor: "#008060",
+            backgroundColor: "#0f766e",
+            borderRadius: 6,
+            barThickness: 18,
           },
         ],
       },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          y: { beginAtZero: true, ticks: { precision: 0 } },
-        },
-      },
+      options: chartDefaults,
     }),
     [activeCustomers],
   );
 
   return (
     <s-stack gap="base">
-      <s-section heading="Wishlist Growth">
-        <div style={{ height: 280, position: "relative" }}>
-          <canvas ref={growthRef} />
+      <div className={admin.panel}>
+        <div className={admin.panelHeader}>
+          <div>
+            <h3 className={admin.panelTitle}>Wishlist growth</h3>
+            <p className={admin.panelHint}>Daily saved products over time</p>
+          </div>
         </div>
-      </s-section>
+        <div className={admin.panelBody}>
+          <div className={admin.chartWrap}>
+            <canvas ref={growthRef} />
+          </div>
+        </div>
+      </div>
 
-      <s-grid
-        gridTemplateColumns="@container (inline-size <= 600px) 1fr, 1fr 1fr"
-        gap="base"
-      >
-        <s-section heading="Top 10 Most Wished Products">
-          <div style={{ height: 320, position: "relative" }}>
-            <canvas ref={productsRef} />
+      <div className={admin.splitEqual}>
+        <div className={admin.panel}>
+          <div className={admin.panelHeader}>
+            <div>
+              <h3 className={admin.panelTitle}>Top wished products</h3>
+              <p className={admin.panelHint}>Most saved items</p>
+            </div>
           </div>
-        </s-section>
-        <s-section heading="Most Active Customers">
-          <div style={{ height: 320, position: "relative" }}>
-            <canvas ref={customersRef} />
+          <div className={admin.panelBody}>
+            <div className={admin.chartWrapTall}>
+              <canvas ref={productsRef} />
+            </div>
           </div>
-        </s-section>
-      </s-grid>
+        </div>
+
+        <div className={admin.panel}>
+          <div className={admin.panelHeader}>
+            <div>
+              <h3 className={admin.panelTitle}>Most active customers</h3>
+              <p className={admin.panelHint}>Shoppers saving the most</p>
+            </div>
+          </div>
+          <div className={admin.panelBody}>
+            <div className={admin.chartWrapTall}>
+              <canvas ref={customersRef} />
+            </div>
+          </div>
+        </div>
+      </div>
     </s-stack>
   );
 }
@@ -160,19 +211,23 @@ export function GrowthChart({ growth = [] }) {
           {
             label: "Added",
             data: growth.map((g) => g.count),
-            borderColor: "#1a1a1a",
-            backgroundColor: "rgba(26, 26, 26, 0.06)",
+            borderColor: "#e11d48",
+            backgroundColor: "rgba(225, 29, 72, 0.08)",
             fill: true,
-            tension: 0.35,
+            tension: 0.4,
+            pointRadius: 2,
+            borderWidth: 2.5,
           },
         ],
       },
       options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        ...chartDefaults,
         scales: {
-          y: { beginAtZero: true, ticks: { precision: 0 } },
+          ...chartDefaults.scales,
+          x: {
+            ...chartDefaults.scales.x,
+            ticks: { ...chartDefaults.scales.x.ticks, maxTicksLimit: 8 },
+          },
         },
       },
     }),
@@ -180,7 +235,7 @@ export function GrowthChart({ growth = [] }) {
   );
 
   return (
-    <div style={{ height: 240, position: "relative" }}>
+    <div className={admin.chartWrap} style={{ height: 240 }}>
       <canvas ref={canvasRef} />
     </div>
   );

@@ -5,6 +5,7 @@ import { getAnalytics } from "../services/wishlist.server";
 import { fetchProductsByIds } from "../utils/graphql";
 import { Charts } from "../components/Charts";
 import { EmptyState } from "../components/EmptyState";
+import admin from "../styles/admin.module.css";
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
@@ -48,6 +49,16 @@ export default function AnalyticsPage() {
 
   return (
     <s-page heading="Analytics">
+      <s-section>
+        <div className={admin.pageIntro} style={{ marginBottom: "0.5rem" }}>
+          <p className={admin.pageEyebrow}>Insights</p>
+          <h2 className={admin.pageTitle}>Wishlist analytics</h2>
+          <p className={admin.pageSubtitle}>
+            Track growth, top products, and the customers saving the most.
+          </p>
+        </div>
+      </s-section>
+
       {!hasData ? (
         <EmptyState
           heading="No analytics yet"
@@ -63,57 +74,62 @@ export default function AnalyticsPage() {
             activeCustomers={mostActiveCustomers}
           />
 
-          <s-grid
-            gridTemplateColumns="@container (inline-size <= 600px) 1fr, 1fr 1fr"
-            gap="base"
-          >
-            <s-section heading="Recently Added">
-              <s-stack gap="small">
-                {recentlyAdded.map((item) => (
-                  <s-box
-                    key={item.id}
-                    padding="small"
-                    border="base"
-                    borderRadius="base"
-                  >
-                    <s-stack gap="small-100">
-                      <s-text>{item.productTitle}</s-text>
-                      <s-text>
-                        {new Date(item.createdAt).toLocaleString()}
-                      </s-text>
-                    </s-stack>
-                  </s-box>
-                ))}
-              </s-stack>
-            </s-section>
-
-            <s-section heading="Low Stock Wishlist Products">
-              {lowStockProducts.length ? (
-                <s-stack gap="small">
-                  {lowStockProducts.map((product) => (
-                    <s-box
-                      key={product.productId}
-                      padding="small"
-                      border="base"
-                      borderRadius="base"
-                    >
-                      <s-stack gap="small-100">
-                        <s-text>{product.productTitle}</s-text>
-                        <s-stack direction="inline" gap="small">
-                          <s-badge tone="warning">
-                            {product.inventory} left
-                          </s-badge>
-                          <s-badge>{product.count} wishes</s-badge>
-                        </s-stack>
+          <div className={admin.splitEqual}>
+            <div className={admin.panel}>
+              <div className={admin.panelHeader}>
+                <div>
+                  <h3 className={admin.panelTitle}>Recently added</h3>
+                  <p className={admin.panelHint}>Latest wishlist activity</p>
+                </div>
+              </div>
+              <div className={admin.panelBody}>
+                <div className={admin.listStack}>
+                  {recentlyAdded.map((item) => (
+                    <div key={item.id} className={admin.listRow}>
+                      <s-stack gap="small-100" inlineSize="100%">
+                        <s-text type="strong">{item.productTitle}</s-text>
+                        <s-text color="subdued">
+                          {new Date(item.createdAt).toLocaleString()}
+                        </s-text>
                       </s-stack>
-                    </s-box>
+                    </div>
                   ))}
-                </s-stack>
-              ) : (
-                <s-paragraph>No low-stock wishlist products.</s-paragraph>
-              )}
-            </s-section>
-          </s-grid>
+                </div>
+              </div>
+            </div>
+
+            <div className={admin.panel}>
+              <div className={admin.panelHeader}>
+                <div>
+                  <h3 className={admin.panelTitle}>Low stock wishlist</h3>
+                  <p className={admin.panelHint}>
+                    Popular products running low
+                  </p>
+                </div>
+              </div>
+              <div className={admin.panelBody}>
+                {lowStockProducts.length ? (
+                  <div className={admin.listStack}>
+                    {lowStockProducts.map((product) => (
+                      <div key={product.productId} className={admin.listRow}>
+                        <s-stack gap="small-100" inlineSize="100%">
+                          <s-text type="strong">{product.productTitle}</s-text>
+                          <s-stack direction="inline" gap="small">
+                            <s-badge tone="warning">
+                              {product.inventory} left
+                            </s-badge>
+                            <s-badge>{product.count} wishes</s-badge>
+                          </s-stack>
+                        </s-stack>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <s-paragraph>No low-stock wishlist products.</s-paragraph>
+                )}
+              </div>
+            </div>
+          </div>
         </>
       )}
     </s-page>

@@ -9,6 +9,7 @@ import {
 } from "../services/wishlist.server";
 import { FUTURE_FEATURES } from "../utils/futureFeatures";
 import { WISHLIST_CARD_SNIPPET } from "../utils/themeSnippet";
+import admin from "../styles/admin.module.css";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -72,6 +73,14 @@ export default function SettingsPage() {
         method="post"
         data-save-bar
       >
+        <div className={admin.pageIntro} style={{ marginBottom: "0.75rem" }}>
+          <p className={admin.pageEyebrow}>Configuration</p>
+          <h2 className={admin.pageTitle}>Wishlist settings</h2>
+          <p className={admin.pageSubtitle}>
+            Control storefront behavior, brand styling, and theme installation.
+          </p>
+        </div>
+
         <s-banner
           heading={
             current.enableWishlist
@@ -128,12 +137,7 @@ export default function SettingsPage() {
           </s-paragraph>
 
           <s-stack gap="large">
-            <s-box
-              padding="base"
-              border="base"
-              borderRadius="base"
-              background="subdued"
-            >
+            <div className={admin.settingsCard}>
               <s-stack gap="base">
                 <s-heading>Button style</s-heading>
                 <s-choice-list label="Wishlist Button Style" name="buttonStyle">
@@ -163,14 +167,9 @@ export default function SettingsPage() {
                   </s-choice>
                 </s-choice-list>
               </s-stack>
-            </s-box>
+            </div>
 
-            <s-box
-              padding="base"
-              border="base"
-              borderRadius="base"
-              background="subdued"
-            >
+            <div className={admin.settingsCard}>
               <s-stack gap="base">
                 <s-heading>Brand color</s-heading>
                 <s-paragraph>
@@ -183,14 +182,9 @@ export default function SettingsPage() {
                   value={current.primaryColor}
                 />
               </s-stack>
-            </s-box>
+            </div>
 
-            <s-box
-              padding="base"
-              border="base"
-              borderRadius="base"
-              background="subdued"
-            >
+            <div className={admin.settingsCard}>
               <s-stack gap="base">
                 <s-heading>Button position</s-heading>
                 <s-choice-list label="Button Position" name="buttonPosition">
@@ -220,7 +214,7 @@ export default function SettingsPage() {
                   </s-choice>
                 </s-choice-list>
               </s-stack>
-            </s-box>
+            </div>
           </s-stack>
         </s-section>
 
@@ -230,12 +224,7 @@ export default function SettingsPage() {
             icon, and wishlist page.
           </s-paragraph>
 
-          <s-box
-            padding="base"
-            border="base"
-            borderRadius="base"
-            background="subdued"
-          >
+          <div className={admin.settingsCard}>
             <s-unordered-list>
               <s-list-item>
                 Add <s-text type="strong">Add to Wishlist</s-text> on the
@@ -253,7 +242,7 @@ export default function SettingsPage() {
                 for collection cards
               </s-list-item>
             </s-unordered-list>
-          </s-box>
+          </div>
         </s-section>
       </Form>
 
@@ -345,7 +334,7 @@ function SettingToggle({
   badgeTone,
 }) {
   return (
-    <s-box padding="base" border="base" borderRadius="base" background="subdued">
+    <div className={admin.settingsCard}>
       <s-stack
         direction="inline"
         gap="base"
@@ -368,7 +357,7 @@ function SettingToggle({
           {...(checked ? { checked: true } : {})}
         />
       </s-stack>
-    </s-box>
+    </div>
   );
 }
 
@@ -395,12 +384,7 @@ function ThemeSnippetSection() {
           heart on collection, search, and homepage grids.
         </s-paragraph>
 
-        <s-box
-          padding="base"
-          border="base"
-          borderRadius="base"
-          background="subdued"
-        >
+        <div className={admin.settingsCard}>
           <s-stack gap="small">
             <s-heading>Install steps</s-heading>
             <s-unordered-list>
@@ -421,7 +405,7 @@ function ThemeSnippetSection() {
               </s-list-item>
             </s-unordered-list>
           </s-stack>
-        </s-box>
+        </div>
 
         <s-stack direction="inline" gap="base">
           <s-button variant="primary" onClick={copySnippet}>
@@ -429,26 +413,7 @@ function ThemeSnippetSection() {
           </s-button>
         </s-stack>
 
-        <s-box
-          padding="base"
-          border="base"
-          borderRadius="base"
-          background="subdued"
-        >
-          <pre
-            style={{
-              margin: 0,
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-              fontSize: "12px",
-              lineHeight: 1.45,
-              maxHeight: "280px",
-              overflow: "auto",
-            }}
-          >
-            {WISHLIST_CARD_SNIPPET}
-          </pre>
-        </s-box>
+        <pre className={admin.codeBlock}>{WISHLIST_CARD_SNIPPET}</pre>
       </s-stack>
     </s-section>
   );

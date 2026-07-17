@@ -8,6 +8,7 @@ import {
 } from "../services/wishlist.server";
 import { CustomerTable } from "../components/CustomerTable";
 import { Pagination } from "../components/Pagination";
+import admin from "../styles/admin.module.css";
 
 export const loader = async ({ request }) => {
   const { session } = await authenticate.admin(request);
@@ -59,20 +60,30 @@ export default function CustomersPage() {
 
   return (
     <s-page heading="Customers">
-      <s-section heading={`Wishlist customers (${total})`}>
+      <s-section>
+        <div className={admin.pageIntro} style={{ marginBottom: "1rem" }}>
+          <p className={admin.pageEyebrow}>Audience</p>
+          <h2 className={admin.pageTitle}>{total} wishlist customers</h2>
+          <p className={admin.pageSubtitle}>
+            Review shoppers who saved products and jump into each wishlist.
+          </p>
+        </div>
+
         <Form method="get">
-          <s-stack direction="inline" gap="base" alignItems="end">
-            <s-text-field
-              label="Search"
-              name="q"
-              value={search}
-              placeholder="Search by email or customer ID"
-              autocomplete="off"
-            />
-            <s-button type="submit" variant="secondary">
-              Search
-            </s-button>
-          </s-stack>
+          <div className={admin.toolbar}>
+            <s-stack direction="inline" gap="base" alignItems="end">
+              <s-text-field
+                label="Search"
+                name="q"
+                value={search}
+                placeholder="Search by email or customer ID"
+                autocomplete="off"
+              />
+              <s-button type="submit" variant="primary">
+                Search
+              </s-button>
+            </s-stack>
+          </div>
         </Form>
       </s-section>
 

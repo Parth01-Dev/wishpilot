@@ -1,3 +1,5 @@
+import admin from "../styles/admin.module.css";
+
 /**
  * Reusable empty state using Polaris web components.
  */
@@ -10,12 +12,17 @@ export function EmptyState({
 }) {
   return (
     <s-section accessibilityLabel="Empty state section">
-      <s-grid gap="base" justifyItems="center" paddingBlock="large-400">
-        <s-grid justifyItems="center" maxInlineSize="450px" gap="base">
-          <s-stack alignItems="center" gap="small">
-            <s-heading>{heading}</s-heading>
-            <s-paragraph>{description}</s-paragraph>
-          </s-stack>
+      <div className={admin.emptyWrap}>
+        <s-stack alignItems="center" gap="base">
+          <span
+            className={`${admin.metricIcon} ${admin.metricIconRose}`}
+            aria-hidden="true"
+            style={{ width: "2.75rem", height: "2.75rem", fontSize: "1.1rem" }}
+          >
+            ♥
+          </span>
+          <s-heading>{heading}</s-heading>
+          <s-paragraph>{description}</s-paragraph>
           {(actionLabel && onAction) || actionHref ? (
             <s-button-group>
               {actionHref ? (
@@ -29,8 +36,8 @@ export function EmptyState({
               )}
             </s-button-group>
           ) : null}
-        </s-grid>
-      </s-grid>
+        </s-stack>
+      </div>
     </s-section>
   );
 }

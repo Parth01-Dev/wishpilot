@@ -1,7 +1,7 @@
 /**
  * Dashboard metric cards — premium overview strip.
  */
-import styles from "./DashboardCards.module.css";
+import admin from "../styles/admin.module.css";
 
 export function DashboardCards({
   totalItems = 0,
@@ -10,30 +10,46 @@ export function DashboardCards({
   lowStockCount = 0,
 }) {
   return (
-    <s-section heading="Overview">
-      <div className={styles.grid}>
+    <s-section>
+      <div className={admin.pageIntro} style={{ marginBottom: "0.85rem" }}>
+        <p className={admin.pageEyebrow}>Performance</p>
+        <h2 className={admin.pageTitle}>Overview</h2>
+        <p className={admin.pageSubtitle}>
+          A quick snapshot of wishlist activity across your store.
+        </p>
+      </div>
+
+      <div className={admin.metricGrid}>
         <MetricCard
           href="/app/wishlist"
-          label="Total Wishlist Items"
+          label="Wishlist items"
           value={totalItems.toLocaleString()}
+          icon="♥"
+          iconClass={admin.metricIconRose}
         />
         <MetricCard
           href="/app/customers"
-          label="Total Customers"
+          label="Customers"
           value={totalCustomers.toLocaleString()}
+          icon="◎"
+          iconClass={admin.metricIconTeal}
         />
         <MetricCard
           href="/app/analytics"
-          label="Most Wished Product"
+          label="Most wished"
           value={mostWished?.productTitle || "—"}
+          icon="★"
+          iconClass={admin.metricIconIndigo}
           badge={mostWished?.count ? `${mostWished.count} wishes` : null}
           badgeTone="info"
         />
         <MetricCard
           href="/app/analytics"
-          label="Low Stock Wishlist"
+          label="Low stock"
           value={String(lowStockCount)}
-          badge={lowStockCount > 0 ? "Needs attention" : "OK"}
+          icon="!"
+          iconClass={admin.metricIconAmber}
+          badge={lowStockCount > 0 ? "Needs attention" : "Healthy"}
           badgeTone={lowStockCount > 0 ? "warning" : "success"}
         />
       </div>
@@ -41,26 +57,31 @@ export function DashboardCards({
   );
 }
 
-function MetricCard({ href, label, value, badge, badgeTone }) {
+function MetricCard({
+  href,
+  label,
+  value,
+  icon,
+  iconClass,
+  badge,
+  badgeTone,
+}) {
   return (
-    <div className={styles.card}>
-      <s-box
-        padding="base"
-        border="base"
-        borderRadius="base"
-        background="subdued"
-        inlineSize="100%"
-      >
-        <s-clickable href={href} padding="none">
-          <s-stack gap="small">
-            <s-text color="subdued">{label}</s-text>
-            <s-heading>{value}</s-heading>
+    <div className={admin.metricCard}>
+      <s-clickable href={href} padding="none">
+        <div className={admin.metricInner}>
+          <div className={admin.metricTop}>
+            <span className={`${admin.metricIcon} ${iconClass || ""}`}>
+              {icon}
+            </span>
             {badge ? (
               <s-badge tone={badgeTone || "info"}>{badge}</s-badge>
             ) : null}
-          </s-stack>
-        </s-clickable>
-      </s-box>
+          </div>
+          <p className={admin.metricLabel}>{label}</p>
+          <p className={admin.metricValue}>{value}</p>
+        </div>
+      </s-clickable>
     </div>
   );
 }

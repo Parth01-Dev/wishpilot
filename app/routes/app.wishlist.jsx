@@ -19,6 +19,7 @@ import { WishlistTable } from "../components/WishlistTable";
 import { WishlistProductModal } from "../components/WishlistProductModal";
 import { SearchBar } from "../components/SearchBar";
 import { Pagination } from "../components/Pagination";
+import admin from "../styles/admin.module.css";
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
@@ -161,15 +162,17 @@ export default function WishlistPage() {
       </s-button>
 
       <s-section>
-        <s-stack gap="base">
-          <s-banner heading={`${total} unique products saved`} tone="info">
-            Each card shows one product and how many customers wishlisted it.
-            Open Details to see the full customer list.
-          </s-banner>
-          <Form method="get">
-            <SearchBar value={search} searchBy={searchBy} />
-          </Form>
-        </s-stack>
+        <div className={admin.pageIntro} style={{ marginBottom: "1rem" }}>
+          <p className={admin.pageEyebrow}>Catalog</p>
+          <h2 className={admin.pageTitle}>Saved products</h2>
+          <p className={admin.pageSubtitle}>
+            {total} unique products wishlisted by your customers. Open details
+            to see who saved each item.
+          </p>
+        </div>
+        <Form method="get">
+          <SearchBar value={search} searchBy={searchBy} />
+        </Form>
       </s-section>
 
       {isLoading ? (

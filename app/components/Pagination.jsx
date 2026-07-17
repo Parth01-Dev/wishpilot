@@ -1,3 +1,5 @@
+import admin from "../styles/admin.module.css";
+
 /**
  * Simple previous/next pagination controls.
  */
@@ -6,11 +8,15 @@ export function Pagination({ page, totalPages, onPrev, onNext, baseUrl }) {
   const canNext = page < totalPages;
 
   if (baseUrl) {
-    const prevHref = canPrev ? `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}page=${page - 1}` : undefined;
-    const nextHref = canNext ? `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}page=${page + 1}` : undefined;
+    const prevHref = canPrev
+      ? `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}page=${page - 1}`
+      : undefined;
+    const nextHref = canNext
+      ? `${baseUrl}${baseUrl.includes("?") ? "&" : "?"}page=${page + 1}`
+      : undefined;
 
     return (
-      <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
+      <div className={admin.paginationBar}>
         <s-text>
           Page {page} of {totalPages}
         </s-text>
@@ -30,23 +36,31 @@ export function Pagination({ page, totalPages, onPrev, onNext, baseUrl }) {
             Next
           </s-button>
         </s-stack>
-      </s-stack>
+      </div>
     );
   }
 
   return (
-    <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
+    <div className={admin.paginationBar}>
       <s-text>
         Page {page} of {totalPages}
       </s-text>
       <s-stack direction="inline" gap="small">
-        <s-button variant="secondary" disabled={!canPrev || undefined} onClick={onPrev}>
+        <s-button
+          variant="secondary"
+          disabled={!canPrev || undefined}
+          onClick={onPrev}
+        >
           Previous
         </s-button>
-        <s-button variant="secondary" disabled={!canNext || undefined} onClick={onNext}>
+        <s-button
+          variant="secondary"
+          disabled={!canNext || undefined}
+          onClick={onNext}
+        >
           Next
         </s-button>
       </s-stack>
-    </s-stack>
+    </div>
   );
 }

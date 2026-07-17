@@ -6,7 +6,7 @@ import { fetchProductsByIds } from "../utils/graphql";
 import { DashboardCards } from "../components/DashboardCards";
 import { GrowthChart } from "../components/Charts";
 import { EmptyState } from "../components/EmptyState";
-import splitStyles from "../components/DashboardSplit.module.css";
+import admin from "../styles/admin.module.css";
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
@@ -87,112 +87,110 @@ export default function Dashboard() {
         lowStockCount={lowStockProducts.length}
       />
 
-      <div className={splitStyles.split}>
-        <s-section heading="Wishlist Growth">
-          {growth.some((g) => g.count > 0) ? (
-            <GrowthChart growth={growth} />
-          ) : (
-            <s-box
-              padding="base"
-              border="base"
-              borderRadius="base"
-              background="subdued"
-            >
+      <div className={admin.split}>
+        <div className={admin.panel}>
+          <div className={admin.panelHeader}>
+            <div>
+              <h3 className={admin.panelTitle}>Wishlist growth</h3>
+              <p className={admin.panelHint}>Recent saves over time</p>
+            </div>
+          </div>
+          <div className={admin.panelBody}>
+            {growth.some((g) => g.count > 0) ? (
+              <GrowthChart growth={growth} />
+            ) : (
               <s-paragraph>
                 Growth will appear after customers start saving products.
               </s-paragraph>
-            </s-box>
-          )}
-        </s-section>
+            )}
+          </div>
+        </div>
 
-        <s-section heading="Low Stock Alerts">
-          {lowStockProducts.length ? (
-            <s-stack gap="small">
-              {lowStockProducts.slice(0, 5).map((product) => (
-                <s-box
-                  key={product.productId}
-                  padding="base"
-                  border="base"
-                  borderRadius="base"
-                  background="subdued"
-                >
-                  <s-stack gap="small">
-                    <s-text type="strong">{product.productTitle}</s-text>
-                    <s-stack direction="inline" gap="small">
-                      <s-badge tone="warning">
-                        {product.inventory} in stock
-                      </s-badge>
-                      <s-badge>{product.count} wishes</s-badge>
+        <div className={admin.panel}>
+          <div className={admin.panelHeader}>
+            <div>
+              <h3 className={admin.panelTitle}>Low stock alerts</h3>
+              <p className={admin.panelHint}>Wished products running low</p>
+            </div>
+          </div>
+          <div className={admin.panelBody}>
+            {lowStockProducts.length ? (
+              <div className={admin.listStack}>
+                {lowStockProducts.slice(0, 5).map((product) => (
+                  <div key={product.productId} className={admin.listRow}>
+                    <s-stack gap="small-100" inlineSize="100%">
+                      <s-text type="strong">{product.productTitle}</s-text>
+                      <s-stack direction="inline" gap="small">
+                        <s-badge tone="warning">
+                          {product.inventory} in stock
+                        </s-badge>
+                        <s-badge>{product.count} wishes</s-badge>
+                      </s-stack>
                     </s-stack>
-                  </s-stack>
-                </s-box>
-              ))}
-            </s-stack>
-          ) : (
-            <s-box
-              padding="base"
-              border="base"
-              borderRadius="base"
-              background="subdued"
-            >
+                  </div>
+                ))}
+              </div>
+            ) : (
               <s-paragraph>No low-stock wished products right now.</s-paragraph>
-            </s-box>
-          )}
-        </s-section>
+            )}
+          </div>
+        </div>
       </div>
 
-      <s-section heading="Recently Added">
-        {recentlyAdded.length ? (
-          <s-stack gap="small">
-            {recentlyAdded.map((item) => (
-              <s-box
-                key={item.id}
-                padding="base"
-                border="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <s-stack direction="inline" gap="base" alignItems="center">
-                  {item.productImage ? (
-                    <s-box
-                      maxInlineSize="48px"
-                      maxBlockSize="48px"
-                      borderRadius="base"
-                      overflow="hidden"
-                    >
-                      <s-image
-                        src={item.productImage}
-                        alt={item.productTitle}
-                        aspectRatio="1/1"
-                      />
-                    </s-box>
-                  ) : null}
-                  <s-stack gap="small-100" inlineSize="100%">
-                    <s-text type="strong">{item.productTitle}</s-text>
-                    <s-text color="subdued">
-                      {item.customerEmail || item.customerId || "Guest"} ·{" "}
-                      {new Date(item.createdAt).toLocaleString()}
-                    </s-text>
-                  </s-stack>
-                  {item.status ? (
-                    <s-badge
-                      tone={item.status === "ACTIVE" ? "success" : "attention"}
-                    >
-                      {item.status}
-                    </s-badge>
-                  ) : null}
-                </s-stack>
-              </s-box>
-            ))}
-          </s-stack>
-        ) : (
-          <EmptyState
-            heading="No wishlist activity yet"
-            description="Enable the wishlist button on your product pages from Settings, then add the theme block."
-            actionLabel="Open Settings"
-            actionHref="/app/settings"
-          />
-        )}
+      <s-section>
+        <div className={admin.panel}>
+          <div className={admin.panelHeader}>
+            <div>
+              <h3 className={admin.panelTitle}>Recently added</h3>
+              <p className={admin.panelHint}>Latest products saved by shoppers</p>
+            </div>
+          </div>
+          <div className={admin.panelBody}>
+            {recentlyAdded.length ? (
+              <div className={admin.listStack}>
+                {recentlyAdded.map((item) => (
+                  <div key={item.id} className={admin.listRow}>
+                    {item.productImage ? (
+                      <div className={admin.thumb}>
+                        <img src={item.productImage} alt={item.productTitle} />
+                      </div>
+                    ) : (
+                      <span
+                        className={`${admin.metricIcon} ${admin.metricIconRose}`}
+                        aria-hidden="true"
+                      >
+                        ♥
+                      </span>
+                    )}
+                    <s-stack gap="small-100" inlineSize="100%">
+                      <s-text type="strong">{item.productTitle}</s-text>
+                      <s-text color="subdued">
+                        {item.customerEmail || item.customerId || "Guest"} ·{" "}
+                        {new Date(item.createdAt).toLocaleString()}
+                      </s-text>
+                    </s-stack>
+                    {item.status ? (
+                      <s-badge
+                        tone={
+                          item.status === "ACTIVE" ? "success" : "attention"
+                        }
+                      >
+                        {item.status}
+                      </s-badge>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                heading="No wishlist activity yet"
+                description="Enable the wishlist button on your product pages from Settings, then add the theme block."
+                actionLabel="Open Settings"
+                actionHref="/app/settings"
+              />
+            )}
+          </div>
+        </div>
       </s-section>
     </s-page>
   );

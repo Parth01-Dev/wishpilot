@@ -3,6 +3,7 @@
   window.__wishpilotAddBound = true;
 
   var PROXY_BASE = "/apps/wish-pilot";
+  var POP_MS = 380;
 
   function showToast(root, message) {
     var toast = root.querySelector("[data-wishpilot-toast]");
@@ -46,13 +47,46 @@
     return normalizeProductId(storedId) === normalizeProductId(buttonId);
   }
 
-  function setActive(btn, active) {
+  function applyAdminColor(color) {
+    if (!color) return;
+    document.documentElement.style.setProperty("--wishpilot-color", color);
+    document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
+      if (!root.getAttribute("style") || root.getAttribute("style").indexOf("--wishpilot-color") === -1) {
+        root.style.setProperty("--wishpilot-color", color);
+      }
+    });
+  }
+
+  function loadAdminColor() {
+    return fetch(PROXY_BASE + "/settings", {
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+    })
+      .then(parseJsonResponse)
+      .then(function (result) {
+        if (!result.ok || !result.data || !result.data.settings) return;
+        applyAdminColor(result.data.settings.primaryColor);
+      })
+      .catch(function () {
+        /* keep default */
+      });
+  }
+
+  function setActive(btn, active, animate) {
     if (!btn) return;
     if (active) {
       btn.classList.add("is-active");
       btn.setAttribute("aria-pressed", "true");
+      if (animate) {
+        btn.classList.remove("is-popping");
+        void btn.offsetWidth;
+        btn.classList.add("is-popping");
+        setTimeout(function () {
+          btn.classList.remove("is-popping");
+        }, POP_MS);
+      }
     } else {
-      btn.classList.remove("is-active");
+      btn.classList.remove("is-active", "is-popping");
       btn.setAttribute("aria-pressed", "false");
     }
   }
@@ -98,7 +132,7 @@
           showToast(root, (result.data && result.data.error) || "Could not update wishlist");
           return;
         }
-        setActive(btn, true);
+        setActive(btn, true, true);
         showToast(
           root,
           (result.data && result.data.toast) ||
@@ -135,7 +169,7 @@
           showToast(root, (result.data && result.data.error) || "Could not update wishlist");
           return;
         }
-        setActive(btn, false);
+        setActive(btn, false, false);
         showToast(root, (result.data && result.data.toast) || "Removed from Wishlist");
         document.dispatchEvent(new CustomEvent("wishpilot:updated"));
       })
@@ -171,6 +205,10 @@
       .then(function (result) {
         if (!result.ok || !result.data || !result.data.items) return;
 
+        if (result.data.settings && result.data.settings.primaryColor) {
+          applyAdminColor(result.data.settings.primaryColor);
+        }
+
         var wishlistIds = (result.data.items || []).map(function (item) {
           return item.productId;
         });
@@ -181,7 +219,7 @@
           var inWishlist = wishlistIds.some(function (id) {
             return productIdMatches(id, productId);
           });
-          setActive(btn, inWishlist);
+          setActive(btn, inWishlist, false);
         });
       })
       .catch(function () {
@@ -204,10 +242,14 @@
     }
   });
 
+  function boot() {
+    loadAdminColor().finally(syncActiveButtons);
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", syncActiveButtons);
+    document.addEventListener("DOMContentLoaded", boot);
   } else {
-    syncActiveButtons();
+    boot();
   }
 
   document.addEventListener("wishpilot:updated", function () {

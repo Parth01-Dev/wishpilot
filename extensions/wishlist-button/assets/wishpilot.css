@@ -13,14 +13,20 @@
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.92);
   border-color: #ddd;
+  color: #111;
   line-height: 1;
 }
 
-.wishpilot-add--card .wishpilot-add__button:hover,
-.wishpilot-add--card .wishpilot-add__button.is-active {
-  background: var(--wishpilot-color, #000);
-  color: #fff;
+.wishpilot-add--card .wishpilot-add__button:hover {
+  background: #fff;
   border-color: var(--wishpilot-color, #000);
+  color: var(--wishpilot-color, #000);
+}
+
+.wishpilot-add--card .wishpilot-add__button.is-active {
+  background: rgba(255, 255, 255, 0.95);
+  /* border-color: var(--wishpilot-color, #000); */
+  color: var(--wishpilot-color, #000);
 }
 
 .wishpilot-add--card .wishpilot-add__toast {
@@ -48,18 +54,85 @@
   border-radius: 4px;
   cursor: pointer;
   font: inherit;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
 }
 
-.wishpilot-add__button:hover,
+.wishpilot-add__button:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
 .wishpilot-add__button.is-active {
-  background: var(--wishpilot-color, #000);
-  color: #fff;
+  /* border-color: var(--wishpilot-color, #000); */
+  color: var(--wishpilot-color, #000);
 }
 
 .wishpilot-add__button:disabled {
   opacity: 0.6;
   cursor: wait;
+}
+
+.wishpilot-add__icon,
+.wishpilot-header__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.wishpilot-heart {
+  display: block;
+  width: 22px;
+  height: 22px;
+  overflow: visible;
+  transform-origin: center;
+}
+
+.wishpilot-heart__outline {
+  fill: currentColor;
+  transition: opacity 0.22s ease;
+}
+
+.wishpilot-heart__fill {
+  fill: var(--wishpilot-color, #000);
+  opacity: 0;
+  transform: scale(0.72);
+  transform-origin: 25px 25px;
+  transition:
+    opacity 0.28s ease,
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.wishpilot-add__button.is-active .wishpilot-heart__outline,
+.wishpilot-header.is-active .wishpilot-heart__outline {
+  opacity: 0;
+}
+
+.wishpilot-add__button.is-active .wishpilot-heart__fill,
+.wishpilot-header.is-active .wishpilot-heart__fill {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.wishpilot-add__button.is-popping .wishpilot-heart {
+  animation: wishpilot-heart-pop 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes wishpilot-heart-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.28);
+  }
+  70% {
+    transform: scale(0.94);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 .wishpilot-add__toast,
@@ -68,10 +141,10 @@
   font-size: 0.875rem;
 }
 .wishpilot-card__title a {
-    font-size: 14px;
-    color: #000;
-    text-decoration: none;
-    font-weight: 700;
+  font-size: 14px;
+  color: #000;
+  text-decoration: none;
+  font-weight: 700;
 }
 .wishpilot-page__toast {
   position: fixed;
@@ -93,7 +166,7 @@
   display: inline-flex;
   align-items: center;
   text-decoration: none;
-  color: inherit;
+  color: var(--wishpilot-color, inherit);
   padding: 0.25rem;
 }
 

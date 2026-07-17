@@ -4,6 +4,7 @@
 
 {% assign show_count = block.settings.show_count %}
 {% assign wishlist_url = block.settings.wishlist_page_url | default: '/pages/wishlist' %}
+{% assign icon_color = block.settings.icon_color | default: '#000000' %}
 
 <a
   href="{{ wishlist_url }}"
@@ -11,9 +12,10 @@
   data-wishpilot-header
   data-customer-id="{% if customer %}{{ customer.id }}{% endif %}"
   aria-label="Wishlist"
+  style="--wishpilot-color: {{ icon_color }};"
   {{ block.shopify_attributes }}
 >
-  <span class="wishpilot-header__icon" aria-hidden="true">❤️</span>
+  <span class="wishpilot-header__icon">{% render 'wishpilot-heart' %}</span>
   {% if show_count %}
     <span class="wishpilot-header__count" data-wishpilot-count>0</span>
   {% endif %}
@@ -31,6 +33,12 @@
       "id": "show_count",
       "label": "Show Wishlist Count",
       "default": true
+    },
+    {
+      "type": "color",
+      "id": "icon_color",
+      "label": "Icon Color",
+      "default": "#000000"
     },
     {
       "type": "text",

@@ -29,8 +29,23 @@ npx prisma generate
 
 3. Start the app:
 
+**Production / permanent URL (Railway):**
+Use `https://victorious-wishpilot-production.up.railway.app` — this is the stable app URL.
+
+**Local development:**
 ```bash
 npm run dev
+```
+
+Do **not** bookmark `*.trycloudflare.com` links. Those tunnels are temporary and stop resolving when `shopify app dev` ends. App URLs stay locked to Railway (`automatically_update_urls_on_dev = false`).
+
+After changing `shopify.app.toml`, push config:
+```bash
+npm run deploy
+```
+or
+```bash
+shopify app config push
 ```
 
 4. In the theme editor:

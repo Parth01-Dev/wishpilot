@@ -1,14 +1,22 @@
-import { useEffect } from "react";
-import { Form, useLoaderData, useNavigation, useSubmit } from "react-router";
+import { useCallback, useEffect, useState } from "react";
+import {
+  Form,
+  useFetcher,
+  useLoaderData,
+  useNavigation,
+  useSubmit,
+} from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import {
-  listWishlistItems,
+  listWishlistProducts,
   removeWishlistItem,
+  removeWishlistProduct,
 } from "../services/wishlist.server";
 import { fetchProductsByIds } from "../utils/graphql";
 import { WishlistTable } from "../components/WishlistTable";
+import { WishlistProductModal } from "../components/WishlistProductModal";
 import { SearchBar } from "../components/SearchBar";
 import { Pagination } from "../components/Pagination";
 
@@ -19,7 +27,7 @@ export const loader = async ({ request }) => {
   const search = url.searchParams.get("q") || "";
   const searchBy = url.searchParams.get("searchBy") || "product";
 
-  const result = await listWishlistItems(session.shop, {
+  const result = await listWishlistProducts(session.shop, {
     page,
     pageSize: 10,
     search,
@@ -28,15 +36,17 @@ export const loader = async ({ request }) => {
 
   const productMap = await fetchProductsByIds(
     admin,
-    result.items.map((i) => i.productId),
+    result.products.map((item) => item.productId),
   );
 
-  const items = result.items.map((item) => {
+  const products = result.products.map((item) => {
     const live = productMap.get(item.productId);
     return {
       ...item,
+      productTitle: live?.title || item.productTitle,
       productImage: item.productImage || live?.image || null,
       vendor: item.vendor || live?.vendor || null,
+      price: item.price ?? live?.price ?? null,
       inventory: live?.inventory ?? null,
       status: live?.status ?? "UNKNOWN",
     };
@@ -44,7 +54,7 @@ export const loader = async ({ request }) => {
 
   return {
     ...result,
-    items,
+    products,
     search,
     searchBy,
   };
@@ -55,7 +65,7 @@ export const action = async ({ request }) => {
   const form = await request.formData();
   const intent = form.get("intent");
 
-  if (intent === "remove") {
+  if (intent === "remove-entry") {
     const id = form.get("id");
     const removed = await removeWishlistItem(session.shop, id);
     return {
@@ -64,29 +74,80 @@ export const action = async ({ request }) => {
     };
   }
 
+  if (intent === "remove-product") {
+    const productId = String(form.get("productId") || "");
+    const result = await removeWishlistProduct(session.shop, productId);
+    return {
+      ok: result.count > 0,
+      toast:
+        result.count > 0
+          ? `Removed ${result.count} wishlist ${result.count === 1 ? "entry" : "entries"}`
+          : "Product not found",
+    };
+  }
+
   return { ok: false };
 };
 
 export default function WishlistPage() {
-  const { items, page, totalPages, search, searchBy, total } = useLoaderData();
+  const { products, page, totalPages, search, searchBy, total } =
+    useLoaderData();
   const navigation = useNavigation();
   const submit = useSubmit();
+  const fetcher = useFetcher();
   const shopify = useAppBridge();
   const isLoading = navigation.state !== "idle";
 
-  useEffect(() => {
-    if (navigation.formData?.get("intent") === "remove" && navigation.state === "idle") {
-      // Toast handled via action navigation result below
-    }
-  }, [navigation]);
+  const [openProduct, setOpenProduct] = useState(null);
 
-  const handleRemove = (item) => {
+  const detail =
+    fetcher.data && fetcher.data.ok
+      ? { product: fetcher.data.product, customers: fetcher.data.customers }
+      : null;
+  const detailLoading = fetcher.state !== "idle";
+
+  const handleOpen = useCallback(
+    (product) => {
+      setOpenProduct(product);
+      const params = new URLSearchParams();
+      params.set("productId", product.productId);
+      fetcher.load(`/app/wishlist/details?${params.toString()}`);
+      shopify.modal.show("wishlist-product-modal");
+    },
+    [fetcher, shopify],
+  );
+
+  const handleRemoveProduct = (product) => {
     const formData = new FormData();
-    formData.set("intent", "remove");
-    formData.set("id", String(item.id));
+    formData.set("intent", "remove-product");
+    formData.set("productId", product.productId);
+    submit(formData, { method: "post" });
+    shopify.toast.show("Removing wishlist entries…");
+  };
+
+  const handleRemoveEntry = (entry) => {
+    const formData = new FormData();
+    formData.set("intent", "remove-entry");
+    formData.set("id", String(entry.id));
     submit(formData, { method: "post" });
     shopify.toast.show("Wishlist Removed");
+
+    if (openProduct) {
+      const params = new URLSearchParams();
+      params.set("productId", openProduct.productId);
+      fetcher.load(`/app/wishlist/details?${params.toString()}`);
+    }
   };
+
+  useEffect(() => {
+    if (navigation.state !== "idle" || !openProduct) return;
+    const intent = navigation.formData?.get("intent");
+    if (intent !== "remove-entry" && intent !== "remove-product") return;
+
+    const params = new URLSearchParams();
+    params.set("productId", openProduct.productId);
+    fetcher.load(`/app/wishlist/details?${params.toString()}`);
+  }, [navigation.state, navigation.formData, openProduct, fetcher]);
 
   const query = new URLSearchParams();
   if (search) query.set("q", search);
@@ -95,7 +156,7 @@ export default function WishlistPage() {
 
   return (
     <s-page heading="Wishlist">
-      <s-section heading={`All items (${total})`}>
+      <s-section heading={`Products (${total})`}>
         <Form method="get">
           <SearchBar value={search} searchBy={searchBy} />
         </Form>
@@ -109,7 +170,11 @@ export default function WishlistPage() {
           </s-stack>
         </s-section>
       ) : (
-        <WishlistTable items={items} onRemove={handleRemove} />
+        <WishlistTable
+          products={products}
+          onOpen={handleOpen}
+          onRemove={handleRemoveProduct}
+        />
       )}
 
       {totalPages > 1 ? (
@@ -117,6 +182,13 @@ export default function WishlistPage() {
           <Pagination page={page} totalPages={totalPages} baseUrl={baseUrl} />
         </s-section>
       ) : null}
+
+      <WishlistProductModal
+        openProduct={openProduct}
+        detail={detail}
+        loading={detailLoading}
+        onRemoveEntry={handleRemoveEntry}
+      />
     </s-page>
   );
 }

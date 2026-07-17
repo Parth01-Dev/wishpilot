@@ -134,24 +134,7 @@ export async function listWishlistItems(
   shop,
   { page = 1, pageSize = 10, search = "", searchBy = "product" } = {},
 ) {
-  const where = { shop };
-
-  if (search.trim()) {
-    const term = search.trim();
-    if (searchBy === "vendor") {
-      where.vendor = { contains: term, mode: "insensitive" };
-    } else if (searchBy === "customer") {
-      where.OR = [
-        { customerEmail: { contains: term, mode: "insensitive" } },
-        { customerId: { contains: term, mode: "insensitive" } },
-      ];
-    } else {
-      where.OR = [
-        { productTitle: { contains: term, mode: "insensitive" } },
-        { productHandle: { contains: term, mode: "insensitive" } },
-      ];
-    }
-  }
+  const where = buildWishlistWhere(shop, search, searchBy);
 
   const skip = (Math.max(1, page) - 1) * pageSize;
   const [items, total] = await Promise.all([
@@ -171,6 +154,116 @@ export async function listWishlistItems(
     pageSize,
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
   };
+}
+
+/**
+ * Build shared wishlist where clause for search filters.
+ */
+function buildWishlistWhere(shop, search = "", searchBy = "product") {
+  const where = { shop };
+
+  if (search.trim()) {
+    const term = search.trim();
+    if (searchBy === "vendor") {
+      where.vendor = { contains: term, mode: "insensitive" };
+    } else if (searchBy === "customer") {
+      where.OR = [
+        { customerEmail: { contains: term, mode: "insensitive" } },
+        { customerId: { contains: term, mode: "insensitive" } },
+      ];
+    } else {
+      where.OR = [
+        { productTitle: { contains: term, mode: "insensitive" } },
+        { productHandle: { contains: term, mode: "insensitive" } },
+      ];
+    }
+  }
+
+  return where;
+}
+
+/**
+ * Unique products on wishlists, with how many customers saved each.
+ */
+export async function listWishlistProducts(
+  shop,
+  { page = 1, pageSize = 10, search = "", searchBy = "product" } = {},
+) {
+  const where = buildWishlistWhere(shop, search, searchBy);
+
+  const grouped = await prisma.wishlist.groupBy({
+    by: ["productId"],
+    where,
+    _count: { id: true },
+    _max: { createdAt: true },
+    orderBy: { _max: { createdAt: "desc" } },
+  });
+
+  const total = grouped.length;
+  const skip = (Math.max(1, page) - 1) * pageSize;
+  const pageGroups = grouped.slice(skip, skip + pageSize);
+
+  const products = await Promise.all(
+    pageGroups.map(async (group) => {
+      const sample = await prisma.wishlist.findFirst({
+        where: { shop, productId: group.productId },
+        orderBy: { createdAt: "desc" },
+      });
+
+      return {
+        productId: group.productId,
+        productTitle: sample?.productTitle || "Product",
+        productHandle: sample?.productHandle || "",
+        productImage: sample?.productImage || null,
+        vendor: sample?.vendor || null,
+        price: sample?.price ?? null,
+        variantId: sample?.variantId || null,
+        customerCount: group._count.id,
+        lastAddedAt: group._max.createdAt,
+      };
+    }),
+  );
+
+  return {
+    products,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(total / pageSize)),
+  };
+}
+
+/**
+ * All wishlist entries for one product (customers / guests who saved it).
+ */
+export async function getWishlistEntriesForProduct(shop, productId) {
+  const normalizedProductId = String(productId).startsWith("gid://")
+    ? String(productId)
+    : `gid://shopify/Product/${productId}`;
+
+  return prisma.wishlist.findMany({
+    where: {
+      shop,
+      OR: [{ productId }, { productId: normalizedProductId }],
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+/**
+ * Delete every wishlist entry for a product in this shop.
+ */
+export async function removeWishlistProduct(shop, productId) {
+  const normalizedProductId = String(productId).startsWith("gid://")
+    ? String(productId)
+    : `gid://shopify/Product/${productId}`;
+
+  return prisma.wishlist.deleteMany({
+    where: {
+      shop,
+      OR: [{ productId }, { productId: normalizedProductId }],
+    },
+  });
 }
 
 /**

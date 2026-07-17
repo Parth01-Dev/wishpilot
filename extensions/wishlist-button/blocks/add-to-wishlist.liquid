@@ -23,9 +23,9 @@
   style="--wishpilot-color: {{ button_color }}; text-align: {{ alignment }};"
   {{ block.shopify_attributes }}
 >
-  <button type="button" class="wishpilot-add__button" data-wishpilot-add-btn>
+  <button type="button" class="wishpilot-add__button" data-wishpilot-add-btn aria-pressed="false">
     {% if icon == 'heart' or icon == 'heart_text' %}
-      <span class="wishpilot-add__icon" aria-hidden="true">❤️</span>
+      <span class="wishpilot-add__icon">{% render 'wishpilot-heart' %}</span>
     {% endif %}
     {% if icon != 'heart' %}
       <span class="wishpilot-add__label">{{ button_text }}</span>
@@ -41,7 +41,7 @@
   "stylesheet": "wishpilot.css",
   "javascript": "wishpilot-add.js",
   "enabled_on": {
-  "templates": ["product", "collection"]
+    "templates": ["product", "collection"]
   },
   "settings": [
     {

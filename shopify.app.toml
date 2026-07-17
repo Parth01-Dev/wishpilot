@@ -26,7 +26,14 @@ api_version = "2026-10"
   topics = [ "app/scopes_update" ]
 
 [auth]
-redirect_urls = [ "https://victorious-wishpilot-production.up.railway.app/api/auth" ]
+redirect_urls = [
+  "https://victorious-wishpilot-production.up.railway.app/auth/callback",
+  "https://victorious-wishpilot-production.up.railway.app/auth/shopify/callback",
+  "https://victorious-wishpilot-production.up.railway.app/api/auth"
+]
 
 [build]
-automatically_update_urls_on_dev = true
+# Keep Partner Dashboard / app URLs on Railway forever.
+# Temporary *.trycloudflare.com tunnels from `shopify app dev` must NOT overwrite them.
+automatically_update_urls_on_dev = false
+include_config_on_deploy = true

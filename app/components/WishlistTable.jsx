@@ -1,10 +1,10 @@
 import { EmptyState } from "./EmptyState";
 
 /**
- * Merchant wishlist index table.
+ * Merchant wishlist index — one row per unique product.
  */
-export function WishlistTable({ items = [], onRemove }) {
-  if (!items.length) {
+export function WishlistTable({ products = [], onOpen, onRemove }) {
+  if (!products.length) {
     return (
       <EmptyState
         heading="No wishlist items yet"
@@ -21,14 +21,14 @@ export function WishlistTable({ items = [], onRemove }) {
         <s-table-header-row>
           <s-table-header listSlot="primary">Product</s-table-header>
           <s-table-header>Vendor</s-table-header>
-          <s-table-header>Customer</s-table-header>
-          <s-table-header>Date Added</s-table-header>
+          <s-table-header format="numeric">Customers</s-table-header>
+          <s-table-header>Last added</s-table-header>
           <s-table-header format="numeric">Inventory</s-table-header>
           <s-table-header>Status</s-table-header>
           <s-table-header>Actions</s-table-header>
         </s-table-header-row>
         <s-table-body>
-          {items.map((item) => {
+          {products.map((item) => {
             const status = item.status || "UNKNOWN";
             const inventory = item.inventory ?? "—";
             const tone =
@@ -37,30 +37,43 @@ export function WishlistTable({ items = [], onRemove }) {
                 : status === "DRAFT"
                   ? "attention"
                   : "critical";
+            const productAdminId = String(item.productId || "").replace(
+              "gid://shopify/Product/",
+              "",
+            );
 
             return (
-              <s-table-row key={item.id}>
+              <s-table-row key={item.productId}>
                 <s-table-cell>
-                  <s-stack direction="inline" gap="small" alignItems="center">
-                    {item.productImage ? (
-                      <s-box maxInlineSize="40px" maxBlockSize="40px">
-                        <s-image
-                          src={item.productImage}
-                          alt={item.productTitle}
-                          aspectRatio="1/1"
-                        />
-                      </s-box>
-                    ) : null}
-                    <s-text>{item.productTitle}</s-text>
-                  </s-stack>
+                  <s-clickable onClick={() => onOpen?.(item)} padding="none">
+                    <s-stack direction="inline" gap="small" alignItems="center">
+                      {item.productImage ? (
+                        <s-box maxInlineSize="40px" maxBlockSize="40px">
+                          <s-image
+                            src={item.productImage}
+                            alt={item.productTitle}
+                            aspectRatio="1/1"
+                          />
+                        </s-box>
+                      ) : null}
+                      <s-stack gap="none">
+                        <s-text type="strong">{item.productTitle}</s-text>
+                        {item.price != null ? (
+                          <s-text color="subdued">
+                            ${Number(item.price).toFixed(2)}
+                          </s-text>
+                        ) : null}
+                      </s-stack>
+                    </s-stack>
+                  </s-clickable>
                 </s-table-cell>
                 <s-table-cell>{item.vendor || "—"}</s-table-cell>
                 <s-table-cell>
-                  {item.customerEmail || item.customerId || "Guest"}
+                  <s-badge>{item.customerCount}</s-badge>
                 </s-table-cell>
                 <s-table-cell>
-                  {item.createdAt
-                    ? new Date(item.createdAt).toLocaleDateString()
+                  {item.lastAddedAt
+                    ? new Date(item.lastAddedAt).toLocaleDateString()
                     : "—"}
                 </s-table-cell>
                 <s-table-cell>{inventory}</s-table-cell>
@@ -69,13 +82,13 @@ export function WishlistTable({ items = [], onRemove }) {
                 </s-table-cell>
                 <s-table-cell>
                   <s-stack direction="inline" gap="small">
-                    {item.productId ? (
+                    <s-button variant="tertiary" onClick={() => onOpen?.(item)}>
+                      Details
+                    </s-button>
+                    {productAdminId ? (
                       <s-button
                         variant="tertiary"
-                        href={`shopify://admin/products/${item.productId.replace(
-                          "gid://shopify/Product/",
-                          "",
-                        )}`}
+                        href={`shopify://admin/products/${productAdminId}`}
                         target="_blank"
                       >
                         View

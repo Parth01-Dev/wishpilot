@@ -33,6 +33,22 @@ export const PRODUCTS_BY_IDS = `#graphql
   }
 `;
 
+export const CUSTOMERS_BY_IDS = `#graphql
+  query WishPilotCustomersByIds($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      ... on Customer {
+        id
+        displayName
+        firstName
+        lastName
+        defaultEmailAddress {
+          emailAddress
+        }
+      }
+    }
+  }
+`;
+
 export const PRODUCT_BY_ID = `#graphql
   query WishPilotProductById($id: ID!) {
     product(id: $id) {
@@ -86,6 +102,25 @@ export function mapProductNode(node) {
 }
 
 /**
+ * Normalize Admin API customer nodes.
+ */
+export function mapCustomerNode(node) {
+  if (!node?.id) return null;
+
+  const email = node.defaultEmailAddress?.emailAddress || null;
+  const name =
+    node.displayName ||
+    [node.firstName, node.lastName].filter(Boolean).join(" ") ||
+    null;
+
+  return {
+    id: node.id,
+    name,
+    email,
+  };
+}
+
+/**
  * Fetch and map products by GID list via Admin GraphQL.
  */
 export async function fetchProductsByIds(admin, productIds) {
@@ -104,4 +139,42 @@ export async function fetchProductsByIds(admin, productIds) {
   }
 
   return map;
+}
+
+/**
+ * Fetch and map customers by ID / GID list via Admin GraphQL.
+ */
+export async function fetchCustomersByIds(admin, customerIds) {
+  if (!customerIds?.length) return new Map();
+
+  const uniqueIds = [
+    ...new Set(
+      customerIds
+        .filter(Boolean)
+        .map((id) =>
+          String(id).startsWith("gid://")
+            ? String(id)
+            : `gid://shopify/Customer/${id}`,
+        ),
+    ),
+  ];
+
+  try {
+    const response = await admin.graphql(CUSTOMERS_BY_IDS, {
+      variables: { ids: uniqueIds },
+    });
+    const json = await response.json();
+    const map = new Map();
+
+    for (const node of json.data?.nodes ?? []) {
+      const mapped = mapCustomerNode(node);
+      if (!mapped) continue;
+      map.set(mapped.id, mapped);
+      map.set(mapped.id.replace("gid://shopify/Customer/", ""), mapped);
+    }
+
+    return map;
+  } catch {
+    return new Map();
+  }
 }

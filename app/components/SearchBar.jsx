@@ -10,25 +10,33 @@ export function SearchBar({
 }) {
   return (
     <div className={admin.toolbar}>
-      <s-stack direction="inline" gap="base" alignItems="end">
+      <div
+        className={
+          showSearchBy ? admin.toolbarGrid : admin.toolbarGridWide
+        }
+      >
         {showSearchBy ? (
-          <s-select label="Search by" name={searchByName} value={searchBy}>
-            <s-option value="product">Product</s-option>
-            <s-option value="vendor">Vendor</s-option>
-            <s-option value="customer">Customer</s-option>
-          </s-select>
+          <div className={admin.toolbarField}>
+            <s-select label="Search by" name={searchByName} value={searchBy}>
+              <s-option value="product">Product</s-option>
+              <s-option value="vendor">Vendor</s-option>
+              <s-option value="customer">Customer</s-option>
+            </s-select>
+          </div>
         ) : null}
-        <s-text-field
-          label="Search"
-          name={name}
-          value={value}
-          placeholder={placeholder}
-          autocomplete="off"
-        />
+        <div className={admin.toolbarFieldGrow}>
+          <s-text-field
+            label="Search"
+            name={name}
+            value={value}
+            placeholder={placeholder}
+            autocomplete="off"
+          />
+        </div>
         <s-button type="submit" variant="primary">
           Search
         </s-button>
-      </s-stack>
+      </div>
     </div>
   );
 }

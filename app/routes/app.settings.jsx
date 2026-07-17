@@ -185,10 +185,11 @@ export default function SettingsPage() {
                   <p className={admin.settingsFieldHint}>
                     How the wishlist control appears on product pages.
                   </p>
-                  <s-choice-list
-                    label="Wishlist button style"
-                    name="buttonStyle"
-                  >
+                  <div className={admin.settingsFieldControl}>
+                    <s-choice-list
+                      label="Wishlist button style"
+                      name="buttonStyle"
+                    >
                     <s-choice
                       value="heart"
                       {...(current.buttonStyle === "heart"
@@ -213,7 +214,8 @@ export default function SettingsPage() {
                     >
                       Heart + text
                     </s-choice>
-                  </s-choice-list>
+                    </s-choice-list>
+                  </div>
                 </div>
 
                 <div className={admin.settingsField}>
@@ -221,22 +223,22 @@ export default function SettingsPage() {
                   <p className={admin.settingsFieldHint}>
                     Used for filled hearts and active wishlist states.
                   </p>
-                  <s-color-field
-                    label="Primary color"
-                    name="primaryColor"
-                    value={current.primaryColor}
-                  />
+                  <div className={admin.settingsFieldControl}>
+                    <s-color-field
+                      label="Primary color"
+                      name="primaryColor"
+                      value={current.primaryColor}
+                    />
+                  </div>
                 </div>
 
-                <div
-                  className={admin.settingsField}
-                  style={{ gridColumn: "1 / -1" }}
-                >
+                <div className={admin.settingsField}>
                   <p className={admin.settingsFieldTitle}>Button position</p>
                   <p className={admin.settingsFieldHint}>
                     Where the wishlist button sits on the product page.
                   </p>
-                  <s-choice-list label="Button position" name="buttonPosition">
+                  <div className={admin.settingsFieldControl}>
+                    <s-choice-list label="Button position" name="buttonPosition">
                     <s-choice
                       value="product_form"
                       {...(current.buttonPosition === "product_form"
@@ -261,7 +263,8 @@ export default function SettingsPage() {
                     >
                       Custom (theme editor)
                     </s-choice>
-                  </s-choice-list>
+                    </s-choice-list>
+                  </div>
                 </div>
               </div>
             </div>

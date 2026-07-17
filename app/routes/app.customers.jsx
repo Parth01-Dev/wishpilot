@@ -139,18 +139,20 @@ export default function CustomersPage() {
 
         <Form method="get">
           <div className={admin.toolbar}>
-            <s-stack direction="inline" gap="base" alignItems="end">
-              <s-text-field
-                label="Search"
-                name="q"
-                value={search}
-                placeholder="Search by email or customer ID"
-                autocomplete="off"
-              />
+            <div className={admin.toolbarGridWide}>
+              <div className={admin.toolbarFieldGrow}>
+                <s-text-field
+                  label="Search"
+                  name="q"
+                  value={search}
+                  placeholder="Search by email or customer ID"
+                  autocomplete="off"
+                />
+              </div>
               <s-button type="submit" variant="primary">
                 Search
               </s-button>
-            </s-stack>
+            </div>
           </div>
         </Form>
 

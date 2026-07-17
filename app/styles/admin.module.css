@@ -400,14 +400,36 @@
 }
 
 .toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  align-items: flex-end;
   padding: 0.85rem 1rem;
   border: 1px solid #e1e3e5;
   border-radius: 8px;
   background: #fff;
+}
+
+.toolbarGrid {
+  display: grid;
+  grid-template-columns: minmax(9.5rem, 11rem) minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+  width: 100%;
+}
+
+.toolbarGridWide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+  width: 100%;
+}
+
+.toolbarField,
+.toolbarFieldGrow {
+  min-width: 0;
+  width: 100%;
+}
+
+.toolbarFieldGrow {
+  flex: 1;
 }
 
 .chartBox {
@@ -533,10 +555,26 @@
   display: flex;
   flex-direction: column;
   gap: 0.65rem;
+  width: 100%;
   padding: 0.9rem 1rem;
   border: 1px solid #e1e3e5;
   border-radius: 8px;
   background: #fafbfb;
+  box-sizing: border-box;
+}
+
+.settingsFieldControl {
+  width: 100%;
+  min-width: 0;
+}
+
+.settingsFieldControl s-text-field,
+.settingsFieldControl s-color-field,
+.settingsFieldControl s-choice-list,
+.settingsFieldControl s-select {
+  display: block;
+  width: 100%;
+  max-width: 100%;
 }
 
 .settingsFieldTitle {
@@ -554,9 +592,10 @@
 }
 
 .settingsAppearanceGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: 0.75rem;
+  width: 100%;
 }
 
 .settingsSteps {
@@ -772,7 +811,7 @@
     grid-template-columns: auto 1fr;
   }
 
-  .settingsAppearanceGrid {
+  .toolbarGrid {
     grid-template-columns: minmax(0, 1fr);
   }
 }

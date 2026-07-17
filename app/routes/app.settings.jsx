@@ -295,62 +295,88 @@ export default function SettingsPage() {
         <ThemeSnippetSection />
       </div>
 
-      <s-section heading="Summary" slot="aside">
-        <div className={admin.settingsAsideCard}>
-          <s-stack direction="inline" gap="small" alignItems="center">
-            <s-heading>Live status</s-heading>
-            <s-badge tone={current.enableWishlist ? "success" : "attention"}>
-              {current.enableWishlist ? "Enabled" : "Disabled"}
-            </s-badge>
-          </s-stack>
-
-          <div className={admin.settingsPreviewRow}>
-            <p className={admin.settingsPreviewLabel}>Button style</p>
-            <p className={admin.settingsPreviewValue}>
-              {buttonStyleLabel(current.buttonStyle)}
-            </p>
-          </div>
-
-          <div className={admin.settingsPreviewRow}>
-            <p className={admin.settingsPreviewLabel}>Position</p>
-            <p className={admin.settingsPreviewValue}>
-              {buttonPositionLabel(current.buttonPosition)}
-            </p>
-          </div>
-
-          <div className={admin.settingsPreviewRow}>
-            <p className={admin.settingsPreviewLabel}>Brand color</p>
-            <s-stack direction="inline" gap="small" alignItems="center">
-              <span
-                className={admin.colorSwatch}
-                style={{ background: current.primaryColor || "#000" }}
-                aria-hidden="true"
-              />
-              <p className={admin.settingsPreviewValue}>
-                {current.primaryColor || "#000000"}
+      <div slot="aside" className={admin.asideStack}>
+        <div className={admin.card}>
+          <div
+            className={`${admin.statusBanner} ${
+              current.enableWishlist
+                ? admin.statusBannerOn
+                : admin.statusBannerOff
+            }`}
+          >
+            <div>
+              <p className={admin.statusBannerLabel}>Wishlist status</p>
+              <p className={admin.statusBannerTitle}>
+                {current.enableWishlist ? "Enabled" : "Disabled"}
               </p>
-            </s-stack>
-          </div>
-
-          <div className={admin.settingsPreviewRow}>
-            <p className={admin.settingsPreviewLabel}>Guest wishlist</p>
-            <p className={admin.settingsPreviewValue}>
-              {current.allowGuestWishlist ? "Allowed" : "Off"}
-            </p>
-          </div>
-        </div>
-      </s-section>
-
-      <s-section heading="Coming soon" slot="aside">
-        <div className={admin.comingSoonList}>
-          {futureFeatures.slice(0, 4).map((feature) => (
-            <div key={feature.id} className={admin.comingSoonItem}>
-              <p className={admin.comingSoonTitle}>{feature.title}</p>
-              <p className={admin.comingSoonDesc}>{feature.description}</p>
             </div>
-          ))}
+            <s-badge tone={current.enableWishlist ? "success" : "attention"}>
+              {current.enableWishlist ? "Live" : "Off"}
+            </s-badge>
+          </div>
+
+          <div className={admin.cardBody}>
+            <dl className={admin.summaryList}>
+              <div className={admin.summaryItem}>
+                <dt className={admin.summaryLabel}>Button style</dt>
+                <dd className={admin.summaryValue}>
+                  {buttonStyleLabel(current.buttonStyle)}
+                </dd>
+              </div>
+              <div className={admin.summaryItem}>
+                <dt className={admin.summaryLabel}>Position</dt>
+                <dd className={admin.summaryValue}>
+                  {buttonPositionLabel(current.buttonPosition)}
+                </dd>
+              </div>
+              <div className={admin.summaryItem}>
+                <dt className={admin.summaryLabel}>Brand color</dt>
+                <dd className={admin.summaryValue}>
+                  <span className={admin.summaryColor}>
+                    <span
+                      className={admin.colorSwatch}
+                      style={{ background: current.primaryColor || "#000" }}
+                      aria-hidden="true"
+                    />
+                    {current.primaryColor || "#000000"}
+                  </span>
+                </dd>
+              </div>
+              <div className={admin.summaryItem}>
+                <dt className={admin.summaryLabel}>Guest wishlist</dt>
+                <dd className={admin.summaryValue}>
+                  {current.allowGuestWishlist ? "Allowed" : "Off"}
+                </dd>
+              </div>
+              <div className={admin.summaryItem}>
+                <dt className={admin.summaryLabel}>Heart icon</dt>
+                <dd className={admin.summaryValue}>
+                  {current.showHeartIcon ? "On" : "Off"}
+                </dd>
+              </div>
+            </dl>
+          </div>
         </div>
-      </s-section>
+
+        <div className={admin.card}>
+          <div className={admin.cardHead}>
+            <div>
+              <h3 className={admin.cardTitle}>Coming soon</h3>
+              <p className={admin.cardHint}>Planned WishPilot features</p>
+            </div>
+          </div>
+          <div className={admin.cardBody}>
+            <ul className={admin.comingSoonList}>
+              {futureFeatures.slice(0, 4).map((feature) => (
+                <li key={feature.id} className={admin.comingSoonItem}>
+                  <p className={admin.comingSoonTitle}>{feature.title}</p>
+                  <p className={admin.comingSoonDesc}>{feature.description}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </div>
     </s-page>
   );
 }

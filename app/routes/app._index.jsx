@@ -6,6 +6,7 @@ import { fetchProductsByIds } from "../utils/graphql";
 import { DashboardCards } from "../components/DashboardCards";
 import { GrowthChart } from "../components/Charts";
 import { EmptyState } from "../components/EmptyState";
+import splitStyles from "../components/DashboardSplit.module.css";
 
 export const loader = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
@@ -71,9 +72,12 @@ export default function Dashboard() {
   } = useLoaderData();
 
   return (
-    <s-page heading="WishPilot Dashboard">
+    <s-page heading="Dashboard">
       <s-button slot="primary-action" href="/app/wishlist" variant="primary">
         View Wishlist
+      </s-button>
+      <s-button slot="secondary-actions" href="/app/settings" variant="tertiary">
+        Settings
       </s-button>
 
       <DashboardCards
@@ -83,32 +87,37 @@ export default function Dashboard() {
         lowStockCount={lowStockProducts.length}
       />
 
-      <s-grid
-        gridTemplateColumns="@container (inline-size <= 600px) 1fr, 2fr 1fr"
-        gap="base"
-      >
+      <div className={splitStyles.split}>
         <s-section heading="Wishlist Growth">
           {growth.some((g) => g.count > 0) ? (
             <GrowthChart growth={growth} />
           ) : (
-            <s-paragraph>
-              Growth will appear after customers start saving products.
-            </s-paragraph>
+            <s-box
+              padding="base"
+              border="base"
+              borderRadius="base"
+              background="subdued"
+            >
+              <s-paragraph>
+                Growth will appear after customers start saving products.
+              </s-paragraph>
+            </s-box>
           )}
         </s-section>
 
-        <s-section heading="Low Stock Wishlist Products">
+        <s-section heading="Low Stock Alerts">
           {lowStockProducts.length ? (
             <s-stack gap="small">
               {lowStockProducts.slice(0, 5).map((product) => (
                 <s-box
                   key={product.productId}
-                  padding="small"
+                  padding="base"
                   border="base"
                   borderRadius="base"
+                  background="subdued"
                 >
-                  <s-stack gap="small-100">
-                    <s-text>{product.productTitle}</s-text>
+                  <s-stack gap="small">
+                    <s-text type="strong">{product.productTitle}</s-text>
                     <s-stack direction="inline" gap="small">
                       <s-badge tone="warning">
                         {product.inventory} in stock
@@ -120,10 +129,17 @@ export default function Dashboard() {
               ))}
             </s-stack>
           ) : (
-            <s-paragraph>No low-stock wished products right now.</s-paragraph>
+            <s-box
+              padding="base"
+              border="base"
+              borderRadius="base"
+              background="subdued"
+            >
+              <s-paragraph>No low-stock wished products right now.</s-paragraph>
+            </s-box>
           )}
         </s-section>
-      </s-grid>
+      </div>
 
       <s-section heading="Recently Added">
         {recentlyAdded.length ? (
@@ -138,7 +154,12 @@ export default function Dashboard() {
               >
                 <s-stack direction="inline" gap="base" alignItems="center">
                   {item.productImage ? (
-                    <s-box maxInlineSize="48px" maxBlockSize="48px">
+                    <s-box
+                      maxInlineSize="48px"
+                      maxBlockSize="48px"
+                      borderRadius="base"
+                      overflow="hidden"
+                    >
                       <s-image
                         src={item.productImage}
                         alt={item.productTitle}
@@ -147,8 +168,8 @@ export default function Dashboard() {
                     </s-box>
                   ) : null}
                   <s-stack gap="small-100" inlineSize="100%">
-                    <s-text>{item.productTitle}</s-text>
-                    <s-text>
+                    <s-text type="strong">{item.productTitle}</s-text>
+                    <s-text color="subdued">
                       {item.customerEmail || item.customerId || "Guest"} ·{" "}
                       {new Date(item.createdAt).toLocaleString()}
                     </s-text>

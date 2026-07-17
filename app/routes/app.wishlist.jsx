@@ -156,10 +156,20 @@ export default function WishlistPage() {
 
   return (
     <s-page heading="Wishlist">
-      <s-section heading={`Products (${total})`}>
-        <Form method="get">
-          <SearchBar value={search} searchBy={searchBy} />
-        </Form>
+      <s-button slot="primary-action" href="/app/settings" variant="secondary">
+        Theme setup
+      </s-button>
+
+      <s-section>
+        <s-stack gap="base">
+          <s-banner heading={`${total} unique products saved`} tone="info">
+            Each card shows one product and how many customers wishlisted it.
+            Open Details to see the full customer list.
+          </s-banner>
+          <Form method="get">
+            <SearchBar value={search} searchBy={searchBy} />
+          </Form>
+        </s-stack>
       </s-section>
 
       {isLoading ? (

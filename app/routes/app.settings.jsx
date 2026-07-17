@@ -48,124 +48,327 @@ export default function SettingsPage() {
   }, [actionData, shopify]);
 
   const current = actionData?.settings || settings;
+  const enabledCount = [
+    current.enableWishlist,
+    current.showHeartIcon,
+    current.allowGuestWishlist,
+    current.showWishlistCount,
+  ].filter(Boolean).length;
 
   return (
     <s-page heading="Settings" inlineSize="small">
-      <Form method="post" data-save-bar>
-        <s-section heading="Wishlist">
+      <s-button
+        slot="primary-action"
+        type="submit"
+        form="wishpilot-settings-form"
+        variant="primary"
+        {...(isSaving ? { loading: true } : {})}
+      >
+        Save settings
+      </s-button>
+
+      <Form
+        id="wishpilot-settings-form"
+        method="post"
+        data-save-bar
+      >
+        <s-banner
+          heading={
+            current.enableWishlist
+              ? "Wishlist is live"
+              : "Wishlist is currently disabled"
+          }
+          tone={current.enableWishlist ? "success" : "warning"}
+        >
+          {current.enableWishlist
+            ? "Shoppers can save products from your storefront. Tune appearance and theme setup below."
+            : "Enable wishlist below to start collecting saved products from customers."}
+        </s-banner>
+
+        <s-section heading="Wishlist controls">
+          <s-paragraph>
+            Choose what shoppers and merchants experience across the storefront
+            and admin.
+          </s-paragraph>
+
           <s-stack gap="base">
-            <s-checkbox
-              label="Enable Wishlist"
+            <SettingToggle
+              title="Enable Wishlist"
+              description="Turn wishlist features on across your storefront."
               name="enableWishlist"
-              {...(current.enableWishlist ? { checked: true } : {})}
+              checked={current.enableWishlist}
+              badge={current.enableWishlist ? "Active" : "Off"}
+              badgeTone={current.enableWishlist ? "success" : "attention"}
             />
-            <s-checkbox
-              label="Show Heart Icon"
+            <SettingToggle
+              title="Show Heart Icon"
+              description="Display the heart icon on wishlist buttons and product cards."
               name="showHeartIcon"
-              {...(current.showHeartIcon ? { checked: true } : {})}
+              checked={current.showHeartIcon}
             />
-            <s-checkbox
-              label="Allow Guest Wishlist"
+            <SettingToggle
+              title="Allow Guest Wishlist"
+              description="Let shoppers save products without signing in."
               name="allowGuestWishlist"
-              {...(current.allowGuestWishlist ? { checked: true } : {})}
+              checked={current.allowGuestWishlist}
             />
-            <s-checkbox
-              label="Show Wishlist Count"
+            <SettingToggle
+              title="Show Wishlist Count"
+              description="Show the number of saved items on the header wishlist icon."
               name="showWishlistCount"
-              {...(current.showWishlistCount ? { checked: true } : {})}
+              checked={current.showWishlistCount}
             />
           </s-stack>
         </s-section>
 
         <s-section heading="Appearance">
-          <s-choice-list label="Wishlist Button Style" name="buttonStyle">
-            <s-choice
-              value="heart"
-              {...(current.buttonStyle === "heart" ? { selected: true } : {})}
-            >
-              Heart icon
-            </s-choice>
-            <s-choice
-              value="button"
-              {...(current.buttonStyle === "button" ? { selected: true } : {})}
-            >
-              Text button
-            </s-choice>
-            <s-choice
-              value="icon_text"
-              {...(current.buttonStyle === "icon_text"
-                ? { selected: true }
-                : {})}
-            >
-              Icon + text
-            </s-choice>
-          </s-choice-list>
-
-          <s-color-field
-            label="Primary Color"
-            name="primaryColor"
-            value={current.primaryColor}
-          />
-
-          <s-choice-list label="Button Position" name="buttonPosition">
-            <s-choice
-              value="product_form"
-              {...(current.buttonPosition === "product_form"
-                ? { selected: true }
-                : {})}
-            >
-              Near product form
-            </s-choice>
-            <s-choice
-              value="below_price"
-              {...(current.buttonPosition === "below_price"
-                ? { selected: true }
-                : {})}
-            >
-              Below price
-            </s-choice>
-            <s-choice
-              value="custom"
-              {...(current.buttonPosition === "custom"
-                ? { selected: true }
-                : {})}
-            >
-              Custom (theme editor)
-            </s-choice>
-          </s-choice-list>
-        </s-section>
-
-        <s-section heading="Theme app extension">
           <s-paragraph>
-            Add the <s-text type="strong">Add to Wishlist</s-text> block to your
-            product template in the theme editor. Also add the header wishlist
-            icon and wishlist page section.
+            Match WishPilot to your brand. The primary color fills the heart
+            when a product is saved.
           </s-paragraph>
+
+          <s-stack gap="large">
+            <s-box
+              padding="base"
+              border="base"
+              borderRadius="base"
+              background="subdued"
+            >
+              <s-stack gap="base">
+                <s-heading>Button style</s-heading>
+                <s-choice-list label="Wishlist Button Style" name="buttonStyle">
+                  <s-choice
+                    value="heart"
+                    {...(current.buttonStyle === "heart"
+                      ? { selected: true }
+                      : {})}
+                  >
+                    Heart icon only
+                  </s-choice>
+                  <s-choice
+                    value="button"
+                    {...(current.buttonStyle === "button"
+                      ? { selected: true }
+                      : {})}
+                  >
+                    Text button
+                  </s-choice>
+                  <s-choice
+                    value="icon_text"
+                    {...(current.buttonStyle === "icon_text"
+                      ? { selected: true }
+                      : {})}
+                  >
+                    Heart + text
+                  </s-choice>
+                </s-choice-list>
+              </s-stack>
+            </s-box>
+
+            <s-box
+              padding="base"
+              border="base"
+              borderRadius="base"
+              background="subdued"
+            >
+              <s-stack gap="base">
+                <s-heading>Brand color</s-heading>
+                <s-paragraph>
+                  Used for filled hearts and active wishlist states on the
+                  storefront.
+                </s-paragraph>
+                <s-color-field
+                  label="Primary Color"
+                  name="primaryColor"
+                  value={current.primaryColor}
+                />
+              </s-stack>
+            </s-box>
+
+            <s-box
+              padding="base"
+              border="base"
+              borderRadius="base"
+              background="subdued"
+            >
+              <s-stack gap="base">
+                <s-heading>Button position</s-heading>
+                <s-choice-list label="Button Position" name="buttonPosition">
+                  <s-choice
+                    value="product_form"
+                    {...(current.buttonPosition === "product_form"
+                      ? { selected: true }
+                      : {})}
+                  >
+                    Near product form
+                  </s-choice>
+                  <s-choice
+                    value="below_price"
+                    {...(current.buttonPosition === "below_price"
+                      ? { selected: true }
+                      : {})}
+                  >
+                    Below price
+                  </s-choice>
+                  <s-choice
+                    value="custom"
+                    {...(current.buttonPosition === "custom"
+                      ? { selected: true }
+                      : {})}
+                  >
+                    Custom (theme editor)
+                  </s-choice>
+                </s-choice-list>
+              </s-stack>
+            </s-box>
+          </s-stack>
         </s-section>
 
-        <s-stack direction="inline" gap="base">
-          <s-button type="submit" variant="primary" {...(isSaving ? { loading: true } : {})}>
-            Save settings
-          </s-button>
-        </s-stack>
+        <s-section heading="Theme setup">
+          <s-paragraph>
+            Add WishPilot blocks in the theme editor for product pages, header
+            icon, and wishlist page.
+          </s-paragraph>
+
+          <s-box
+            padding="base"
+            border="base"
+            borderRadius="base"
+            background="subdued"
+          >
+            <s-unordered-list>
+              <s-list-item>
+                Add <s-text type="strong">Add to Wishlist</s-text> on the
+                product template
+              </s-list-item>
+              <s-list-item>
+                Add <s-text type="strong">Wishlist Icon</s-text> to the header
+              </s-list-item>
+              <s-list-item>
+                Create a page and add the{" "}
+                <s-text type="strong">Wishlist Page</s-text> section
+              </s-list-item>
+              <s-list-item>
+                Enable the <s-text type="strong">WishPilot</s-text> app embed
+                for collection cards
+              </s-list-item>
+            </s-unordered-list>
+          </s-box>
+        </s-section>
       </Form>
 
       <ThemeSnippetSection />
 
+      <s-section heading="Setup status" slot="aside">
+        <s-stack gap="base">
+          <s-box
+            padding="base"
+            border="base"
+            borderRadius="base"
+            background="subdued"
+          >
+            <s-stack gap="small">
+              <s-heading>Wishlist status</s-heading>
+              <s-badge tone={current.enableWishlist ? "success" : "attention"}>
+                {current.enableWishlist ? "Enabled" : "Disabled"}
+              </s-badge>
+              <s-text>
+                {enabledCount} of 4 options turned on
+              </s-text>
+              <s-text>
+                Style:{" "}
+                {current.buttonStyle === "heart"
+                  ? "Heart icon"
+                  : current.buttonStyle === "button"
+                    ? "Text button"
+                    : "Heart + text"}
+              </s-text>
+              <s-stack direction="inline" gap="small" alignItems="center">
+                <s-text>Color</s-text>
+                <span
+                  style={{
+                    display: "inline-block",
+                    width: 16,
+                    height: 16,
+                    borderRadius: 999,
+                    background: current.primaryColor || "#000",
+                    border: "1px solid rgba(0,0,0,0.15)",
+                  }}
+                />
+                <s-text>{current.primaryColor || "#000000"}</s-text>
+              </s-stack>
+            </s-stack>
+          </s-box>
+
+          <s-box padding="base" border="base" borderRadius="base">
+            <s-stack gap="small">
+              <s-heading>Quick links</s-heading>
+              <s-link href="/app">Dashboard</s-link>
+              <s-link href="/app/wishlist">Wishlist</s-link>
+              <s-link href="/app/analytics">Analytics</s-link>
+            </s-stack>
+          </s-box>
+        </s-stack>
+      </s-section>
+
       <s-section heading="Coming soon" slot="aside">
         <s-paragraph>
-          Architecture is ready for these future WishPilot features:
+          Premium features already scaffolded for upcoming WishPilot releases.
         </s-paragraph>
-        <s-unordered-list>
-          {futureFeatures.map((feature) => (
-            <s-list-item key={feature.id}>
-              <s-text type="strong">{feature.title}</s-text> —{" "}
-              {feature.description}
-            </s-list-item>
+        <s-stack gap="small">
+          {futureFeatures.slice(0, 5).map((feature) => (
+            <s-box
+              key={feature.id}
+              padding="small"
+              border="base"
+              borderRadius="base"
+              background="subdued"
+            >
+              <s-stack gap="small-100">
+                <s-text type="strong">{feature.title}</s-text>
+                <s-text>{feature.description}</s-text>
+              </s-stack>
+            </s-box>
           ))}
-        </s-unordered-list>
+        </s-stack>
       </s-section>
     </s-page>
+  );
+}
+
+function SettingToggle({
+  title,
+  description,
+  name,
+  checked,
+  badge,
+  badgeTone,
+}) {
+  return (
+    <s-box padding="base" border="base" borderRadius="base" background="subdued">
+      <s-stack
+        direction="inline"
+        gap="base"
+        alignItems="start"
+        justifyContent="space-between"
+      >
+        <s-stack gap="small">
+          <s-stack direction="inline" gap="small" alignItems="center">
+            <s-heading>{title}</s-heading>
+            {badge ? (
+              <s-badge tone={badgeTone || "info"}>{badge}</s-badge>
+            ) : null}
+          </s-stack>
+          <s-paragraph>{description}</s-paragraph>
+        </s-stack>
+        <s-checkbox
+          label={title}
+          name={name}
+          labelAccessibilityVisibility="exclusive"
+          {...(checked ? { checked: true } : {})}
+        />
+      </s-stack>
+    </s-box>
   );
 }
 
@@ -185,38 +388,39 @@ function ThemeSnippetSection() {
   }, [shopify]);
 
   return (
-    <s-section heading="Collection / product card button">
+    <s-section heading="Collection card button">
       <s-stack gap="base">
         <s-paragraph>
-          Use this when you want a wishlist heart on every product card
-          (collection, search, homepage). Customers click it to add that
-          product to their wishlist.
+          Paste this snippet into your product card Liquid to show a wishlist
+          heart on collection, search, and homepage grids.
         </s-paragraph>
 
         <s-box
           padding="base"
-          borderWidth="base"
+          border="base"
           borderRadius="base"
           background="subdued"
         >
-          <s-unordered-list>
-            <s-list-item>
-              1. Online Store → Themes → Customize →{" "}
-              <s-text type="strong">App embeds</s-text> → enable{" "}
-              <s-text type="strong">WishPilot</s-text> → Save
-            </s-list-item>
-            <s-list-item>
-              2. Online Store → Themes →{" "}
-              <s-text type="strong">Edit code</s-text>
-            </s-list-item>
-            <s-list-item>
-              3. Open <s-text type="strong">snippets/card-product.liquid</s-text>{" "}
-              (Dawn) or your theme&apos;s product card file
-            </s-list-item>
-            <s-list-item>
-              4. Paste the snippet near the product image or title, then Save
-            </s-list-item>
-          </s-unordered-list>
+          <s-stack gap="small">
+            <s-heading>Install steps</s-heading>
+            <s-unordered-list>
+              <s-list-item>
+                Themes → Customize → <s-text type="strong">App embeds</s-text> →
+                enable <s-text type="strong">WishPilot</s-text>
+              </s-list-item>
+              <s-list-item>
+                Themes → <s-text type="strong">Edit code</s-text>
+              </s-list-item>
+              <s-list-item>
+                Open{" "}
+                <s-text type="strong">snippets/card-product.liquid</s-text> (or
+                your product card file)
+              </s-list-item>
+              <s-list-item>
+                Paste near the product image or title, then Save
+              </s-list-item>
+            </s-unordered-list>
+          </s-stack>
         </s-box>
 
         <s-stack direction="inline" gap="base">
@@ -227,7 +431,7 @@ function ThemeSnippetSection() {
 
         <s-box
           padding="base"
-          borderWidth="base"
+          border="base"
           borderRadius="base"
           background="subdued"
         >
@@ -238,7 +442,7 @@ function ThemeSnippetSection() {
               wordBreak: "break-word",
               fontSize: "12px",
               lineHeight: 1.45,
-              maxHeight: "320px",
+              maxHeight: "280px",
               overflow: "auto",
             }}
           >

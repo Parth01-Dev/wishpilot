@@ -67,7 +67,7 @@ export const loader = async ({ request }) => {
     return {
       id: entry.id,
       customerId: numericCustomerId,
-      guestId: isGuest ? `guest-${entry.id}` : null,
+      guestId: entry.guestId || (isGuest ? `guest-${entry.id}` : null),
       name: liveCustomer?.name || (isGuest ? "Guest" : null),
       email: liveCustomer?.email || entry.customerEmail || null,
       createdAt: entry.createdAt,

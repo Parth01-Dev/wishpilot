@@ -51,6 +51,7 @@ export const loader = async ({ request }) => {
       customerId ||
       url.searchParams.get("logged_in_customer_id") ||
       null;
+    const guestId = url.searchParams.get("guestId") || null;
 
     if (!resolvedCustomerId && !settings.allowGuestWishlist) {
       return Response.json(
@@ -59,8 +60,22 @@ export const loader = async ({ request }) => {
       );
     }
 
+    if (!resolvedCustomerId && settings.allowGuestWishlist && !guestId) {
+      return Response.json({
+        ok: true,
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: Number(url.searchParams.get("pageSize") || "12"),
+        totalPages: 1,
+        settings,
+        count: 0,
+      });
+    }
+
     const result = await getStorefrontWishlist(shop, {
       customerId: resolvedCustomerId,
+      guestId: resolvedCustomerId ? null : guestId,
       sort,
       search,
       page,

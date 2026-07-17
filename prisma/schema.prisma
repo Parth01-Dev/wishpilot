@@ -31,6 +31,7 @@ model Wishlist {
   id            Int      @id @default(autoincrement())
   shop          String
   customerId    String?
+  guestId       String?
   customerEmail String?
   productId     String
   variantId     String?
@@ -43,9 +44,11 @@ model Wishlist {
 
   @@index([shop])
   @@index([customerId])
+  @@index([guestId])
   @@index([productId])
   @@index([shop, createdAt])
   @@index([shop, customerId, productId])
+  @@index([shop, guestId, productId])
 }
 
 model ShopSettings {

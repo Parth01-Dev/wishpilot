@@ -37,7 +37,7 @@ export const action = async ({ request }) => {
     }
   }
 
-  const { id, productId, variantId, customerId } = body;
+  const { id, productId, variantId, customerId, guestId } = body;
 
   let removed = null;
   if (id) {
@@ -55,6 +55,7 @@ export const action = async ({ request }) => {
     removed = await removeWishlistItemByProduct({
       shop,
       customerId: customerId ? String(customerId) : null,
+      guestId: !customerId && guestId ? String(guestId) : null,
       productId: normalizedProductId,
       variantId: normalizedVariantId,
     });

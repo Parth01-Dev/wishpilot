@@ -39,19 +39,24 @@ export async function updateShopSettings(shop, data) {
 }
 
 /**
- * Prevent duplicate wishlist entries for the same shop/customer/product/variant.
+ * Prevent duplicate wishlist entries for the same shop/customer|guest/product/variant.
  * Falls back to product-level match so collection cards stay in sync across variants.
  */
 export async function findExistingWishlistItem({
   shop,
   customerId,
+  guestId,
   productId,
   variantId,
 }) {
   const baseWhere = {
     shop,
     productId,
-    customerId: customerId ?? null,
+    ...(customerId
+      ? { customerId }
+      : guestId
+        ? { guestId, customerId: null }
+        : { customerId: null, guestId: null }),
   };
 
   if (variantId) {
@@ -79,6 +84,7 @@ export async function addWishlistItem(data) {
     data: {
       shop: data.shop,
       customerId: data.customerId ?? null,
+      guestId: data.customerId ? null : data.guestId ?? null,
       customerEmail: data.customerEmail ?? null,
       productId: data.productId,
       variantId: data.variantId ?? null,
@@ -112,12 +118,14 @@ export async function removeWishlistItem(shop, id) {
 export async function removeWishlistItemByProduct({
   shop,
   customerId,
+  guestId,
   productId,
   variantId,
 }) {
   const existing = await findExistingWishlistItem({
     shop,
     customerId,
+    guestId,
     productId,
     variantId,
   });
@@ -491,17 +499,36 @@ export async function getWishlistGrowth(shop, days = 14) {
 }
 
 /**
- * Storefront wishlist for a customer (or guest session key).
+ * Storefront wishlist for a logged-in customer or guest session.
+ * Requires customerId or guestId — never returns the whole shop list.
  */
 export async function getStorefrontWishlist(
   shop,
-  { customerId, sort = "newest", search = "", page = 1, pageSize = 12 } = {},
+  {
+    customerId,
+    guestId,
+    sort = "newest",
+    search = "",
+    page = 1,
+    pageSize = 12,
+  } = {},
 ) {
-  const where = { shop };
-
-  if (customerId) {
-    where.customerId = customerId;
+  if (!customerId && !guestId) {
+    return {
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize,
+      totalPages: 1,
+    };
   }
+
+  const where = {
+    shop,
+    ...(customerId
+      ? { customerId }
+      : { guestId, customerId: null }),
+  };
 
   if (search.trim()) {
     where.OR = [

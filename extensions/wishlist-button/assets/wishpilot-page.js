@@ -1,8 +1,25 @@
 (function () {
   var PROXY_BASE = "/apps/wish-pilot";
+  var GUEST_KEY = "wishpilot_guest_id";
 
   function qs(root, sel) {
     return root.querySelector(sel);
+  }
+
+  function getGuestId() {
+    try {
+      var existing = localStorage.getItem(GUEST_KEY);
+      if (existing) return existing;
+      var id =
+        "guest_" +
+        Date.now().toString(36) +
+        "_" +
+        Math.random().toString(36).slice(2, 10);
+      localStorage.setItem(GUEST_KEY, id);
+      return id;
+    } catch (e) {
+      return null;
+    }
   }
 
   function showToast(root, message) {
@@ -61,10 +78,10 @@
       item.id +
       '" class="is-danger">Remove</button>' +
       '<button type="button" class="wishpilot-move-cart" data-move-cart="' +
-        item.id +
-        '" data-variant="' +
-        (item.variantId || "") +
-        '">Move to Cart</button>' +
+      item.id +
+      '" data-variant="' +
+      (item.variantId || "") +
+      '">Move to Cart</button>' +
       '<button type="button" data-share="' +
       item.id +
       '">Share</button>' +
@@ -74,175 +91,93 @@
 
   document.querySelectorAll("[data-wishpilot-page]").forEach(function (root) {
     var state = { page: 1, totalPages: 1, sort: "newest", search: "" };
-    var customerId = root.getAttribute("data-customer-id");
+    var customerId = root.getAttribute("data-customer-id") || "";
+    var guestId = "";
     var grid = qs(root, "[data-wishpilot-grid]");
     var pagination = qs(root, "[data-wishpilot-pagination]");
     var pageLabel = qs(root, "[data-wishpilot-page-label]");
     var loading = qs(root, "[data-wishpilot-loading]");
+    var loginPrompt = qs(root, "[data-wishpilot-login-prompt]");
+    var toolbar = qs(root, ".wishpilot-page__toolbar");
 
-    if (!customerId) {
-      if (grid) grid.innerHTML = "";
-      return;
-    }
     function moveToCart(wishlistId, variantId, button) {
-      console.log("Wishlist ID:", wishlistId);
-console.log("Variant ID:", variantId);
+      if (!variantId) {
+        showToast(root, "Product variant not found");
+        return;
+      }
 
-  if (!variantId) {
-    showToast(root, "Product variant not found");
-    return;
-  }
+      if (button.dataset.loading === "true") {
+        return;
+      }
 
-  if (button.dataset.loading === "true") {
-    return;
-  }
+      button.dataset.loading = "true";
+      button.disabled = true;
+      button.textContent = "Moving...";
 
-  button.dataset.loading = "true";
-  button.disabled = true;
-  button.textContent = "Moving...";
+      var numericVariantId = variantId;
+      if (
+        typeof numericVariantId === "string" &&
+        numericVariantId.startsWith("gid://")
+      ) {
+        numericVariantId = numericVariantId.split("/").pop();
+      }
 
-  // Convert Shopify GraphQL GID to numeric variant ID
-var numericVariantId = variantId;
-
-if (
-  typeof numericVariantId === "string" &&
-  numericVariantId.startsWith("gid://")
-) {
-  numericVariantId = numericVariantId.split("/").pop();
-}
-
-console.log("Original Variant ID:", variantId);
-console.log("Numeric Variant ID:", numericVariantId);
-
-  fetch("/cart/add.js", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
-      items: [
-        {
-          id: Number(numericVariantId),
-          quantity: 1,
-        },
-      ],
-      sections: ["cart-drawer", "cart-icon-bubble"],
-      sections_url: window.location.pathname,
-    }),
-  })
-    .then(function (res) {
-      return res.json().then(function (data) {
-        if (!res.ok) {
-          throw new Error(data.description || "Unable to add product");
-        }
-        return data;
-      });
-    })
-
-    .then(function (cartData) {
-
-  const drawer = document.querySelector("cart-drawer");
-
-  if (drawer) {
-    drawer.renderContents(cartData);
-  }
-
-  return fetch(PROXY_BASE + "/remove", {
+      fetch("/cart/add.js", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Accept: "application/json",
         },
-        credentials: "same-origin",
         body: JSON.stringify({
-          id: Number(wishlistId),
-          customerId: customerId,
+          id: Number(numericVariantId),
+          quantity: 1,
         }),
-      });
+      })
+        .then(function (res) {
+          return res.json().then(function (data) {
+            return { ok: res.ok, data: data };
+          });
+        })
+        .then(function (result) {
+          button.dataset.loading = "false";
+          button.disabled = false;
+          button.textContent = "Move to Cart";
 
-    })
+          if (!result.ok) {
+            showToast(
+              root,
+              (result.data && result.data.description) || "Could not add to cart",
+            );
+            return;
+          }
 
-    .then(function (res) {
-      return res.json();
-    })
-
-    .then(function () {
-
-  document.dispatchEvent(
-    new CustomEvent("wishpilot:updated")
-  );
-
-  // Refresh Dawn cart drawer
-
-  showToast(root, "Product moved to cart");
-
-  load();
-
-})
-
-    .catch(function (error) {
-
-      showToast(root, error.message);
-
-      button.disabled = false;
-      button.textContent = "Move to Cart";
-
-    })
-
-    .finally(function () {
-
-      delete button.dataset.loading;
-
-    });
-
-}
-
-function refreshCartDrawer() {
-
-  fetch("/?sections=cart-drawer,cart-icon-bubble")
-    .then(function (response) {
-      return response.json();
-    })
-    .then(function (sections) {
-
-      var cartDrawer = document.querySelector("cart-drawer");
-      if (cartDrawer && sections["cart-drawer"]) {
-
-        var parser = new DOMParser();
-
-        var drawerDoc = parser.parseFromString(
-          sections["cart-drawer"],
-          "text/html"
-        );
-
-        cartDrawer.innerHTML =
-          drawerDoc.querySelector("cart-drawer").innerHTML;
-      }
-
-      var bubble = document.getElementById("cart-icon-bubble");
-
-      if (bubble && sections["cart-icon-bubble"]) {
-
-        var parser = new DOMParser();
-
-        var bubbleDoc = parser.parseFromString(
-          sections["cart-icon-bubble"],
-          "text/html"
-        );
-
-        bubble.innerHTML =
-          bubbleDoc.getElementById("cart-icon-bubble").innerHTML;
-      }
-
-    });
-
-}
+          showToast(root, "Added to cart");
+          document.dispatchEvent(new CustomEvent("wishpilot:updated"));
+        })
+        .catch(function () {
+          button.dataset.loading = "false";
+          button.disabled = false;
+          button.textContent = "Move to Cart";
+          showToast(root, "Could not add to cart");
+        });
+    }
 
     function load() {
+      if (!customerId && !guestId) {
+        if (grid) {
+          grid.innerHTML =
+            '<p class="wishpilot-page__empty">Sign in to view your wishlist.</p>';
+        }
+        if (pagination) pagination.hidden = true;
+        return;
+      }
+
       if (loading) loading.hidden = false;
       var params = new URLSearchParams();
-      params.set("customerId", customerId);
+      if (customerId) {
+        params.set("customerId", customerId);
+      } else {
+        params.set("guestId", guestId);
+      }
       params.set("page", String(state.page));
       params.set("sort", state.sort);
       if (state.search) params.set("q", state.search);
@@ -275,7 +210,8 @@ function refreshCartDrawer() {
           }
 
           grid.innerHTML = data.items.map(cardHtml).join("");
-          pageLabel.textContent = "Page " + state.page + " of " + state.totalPages;
+          pageLabel.textContent =
+            "Page " + state.page + " of " + state.totalPages;
           pagination.hidden = state.totalPages <= 1;
 
           grid.querySelectorAll("[data-remove]").forEach(function (btn) {
@@ -285,17 +221,13 @@ function refreshCartDrawer() {
           });
 
           grid.querySelectorAll("[data-move-cart]").forEach(function (btn) {
-
             btn.addEventListener("click", function () {
-
               moveToCart(
                 btn.getAttribute("data-move-cart"),
                 btn.getAttribute("data-variant"),
-                btn
+                btn,
               );
-
             });
-
           });
 
           grid.querySelectorAll("[data-share]").forEach(function (btn) {
@@ -315,16 +247,20 @@ function refreshCartDrawer() {
                 return;
               }
 
-              var url = handle.indexOf("http") === 0
-                ? handle
-                : window.location.origin + handle;
+              var url =
+                handle.indexOf("http") === 0
+                  ? handle
+                  : window.location.origin + handle;
 
               if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(url).then(function () {
-                  showToast(root, "Product link copied");
-                }).catch(function () {
-                  showToast(root, "Product link copied");
-                });
+                navigator.clipboard.writeText(url).then(
+                  function () {
+                    showToast(root, "Product link copied");
+                  },
+                  function () {
+                    showToast(root, "Product link copied");
+                  },
+                );
               } else {
                 showToast(root, "Product link copied");
               }
@@ -339,6 +275,10 @@ function refreshCartDrawer() {
     }
 
     function removeItem(id) {
+      var body = { id: Number(id) };
+      if (customerId) body.customerId = customerId;
+      if (guestId) body.guestId = guestId;
+
       fetch(PROXY_BASE + "/remove", {
         method: "POST",
         headers: {
@@ -346,7 +286,7 @@ function refreshCartDrawer() {
           Accept: "application/json",
         },
         credentials: "same-origin",
-        body: JSON.stringify({ id: Number(id), customerId: customerId }),
+        body: JSON.stringify(body),
       })
         .then(function (res) {
           return res.json();
@@ -359,6 +299,31 @@ function refreshCartDrawer() {
         .catch(function () {
           showToast(root, "Could not remove item");
         });
+    }
+
+    function bootAsGuestOrLogin(settings) {
+      if (customerId) {
+        if (loginPrompt) loginPrompt.hidden = true;
+        load();
+        return;
+      }
+
+      if (settings && settings.allowGuestWishlist) {
+        guestId = getGuestId() || "";
+        if (loginPrompt) loginPrompt.hidden = true;
+        if (toolbar) toolbar.hidden = false;
+        load();
+        return;
+      }
+
+      if (loginPrompt) loginPrompt.hidden = false;
+      if (toolbar) toolbar.hidden = true;
+      if (pagination) pagination.hidden = true;
+      if (loading) loading.hidden = true;
+      if (grid) {
+        grid.innerHTML =
+          '<p class="wishpilot-page__empty">Sign in to view and manage your wishlist.</p>';
+      }
     }
 
     var searchInput = qs(root, "[data-wishpilot-search]");
@@ -404,6 +369,18 @@ function refreshCartDrawer() {
       });
     }
 
-    load();
+    fetch(PROXY_BASE + "/settings", {
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        bootAsGuestOrLogin((data && data.settings) || null);
+      })
+      .catch(function () {
+        bootAsGuestOrLogin(null);
+      });
   });
 })();

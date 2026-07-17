@@ -54,6 +54,7 @@ export const action = async ({ request }) => {
     productId,
     variantId,
     customerId: bodyCustomerId,
+    guestId: bodyGuestId,
     customerEmail,
     productTitle,
     productHandle,
@@ -63,6 +64,8 @@ export const action = async ({ request }) => {
   } = body;
 
   const customerId = bodyCustomerId || loggedInCustomerId || null;
+  const guestId =
+    !customerId && bodyGuestId ? String(bodyGuestId).trim() : null;
 
   if (!productId) {
     return Response.json({ error: "productId is required" }, { status: 400 });
@@ -72,6 +75,13 @@ export const action = async ({ request }) => {
     return Response.json(
       { error: "Login required", code: "LOGIN_REQUIRED" },
       { status: 401 },
+    );
+  }
+
+  if (!customerId && settings.allowGuestWishlist && !guestId) {
+    return Response.json(
+      { error: "guestId is required for guest wishlist", code: "GUEST_ID_REQUIRED" },
+      { status: 400 },
     );
   }
 
@@ -128,6 +138,7 @@ export const action = async ({ request }) => {
   const { item, alreadyExists } = await addWishlistItem({
     shop,
     customerId: customerId ? String(customerId) : null,
+    guestId,
     customerEmail: customerEmail || null,
     productId: normalizedProductId,
     variantId: normalizedVariantId,

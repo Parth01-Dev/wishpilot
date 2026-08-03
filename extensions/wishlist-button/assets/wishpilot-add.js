@@ -4,13 +4,16 @@
 
   var PROXY_BASE = "/apps/wish-pilot";
   var GUEST_KEY = "wishpilot_guest_id";
+  var CACHE_KEY = "wishpilot_wishlist_ids";
   var POP_MS = 380;
   var settingsCache = null;
-  /** Cached wishlist product IDs (normalized) for fast re-sync after AJAX filter/sort. */
-  var wishlistIdCache = null;
+  /** Normalized product ID strings currently on the wishlist. */
+  var wishlistIdCache = loadPersistedIds();
   var syncTimer = null;
+  var applyTimer = null;
   var syncInFlight = false;
   var syncQueued = false;
+  var lastButtonCount = 0;
 
   function showToast(root, message) {
     var toast = root.querySelector("[data-wishpilot-toast]");
@@ -47,11 +50,56 @@
 
   function normalizeProductId(id) {
     if (!id) return "";
-    return String(id).replace(/^gid:\/\/shopify\/Product\//, "");
+    return String(id).replace(/^gid:\/\/shopify\/Product\//, "").trim();
   }
 
   function productIdMatches(storedId, buttonId) {
     return normalizeProductId(storedId) === normalizeProductId(buttonId);
+  }
+
+  function loadPersistedIds() {
+    try {
+      var raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return [];
+      var parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.map(normalizeProductId).filter(Boolean);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function persistIds(ids) {
+    wishlistIdCache = (ids || []).map(normalizeProductId).filter(Boolean);
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(wishlistIdCache));
+    } catch (e) {
+      /* private mode / quota */
+    }
+  }
+
+  function addIdToCache(productId) {
+    var id = normalizeProductId(productId);
+    if (!id) return;
+    wishlistIdCache = wishlistIdCache || [];
+    if (
+      !wishlistIdCache.some(function (existing) {
+        return existing === id;
+      })
+    ) {
+      wishlistIdCache.push(id);
+      persistIds(wishlistIdCache);
+    }
+  }
+
+  function removeIdFromCache(productId) {
+    var id = normalizeProductId(productId);
+    if (!id || !wishlistIdCache) return;
+    persistIds(
+      wishlistIdCache.filter(function (existing) {
+        return existing !== id;
+      }),
+    );
   }
 
   function getGuestId() {
@@ -191,16 +239,26 @@
   }
 
   /**
-   * Apply cached wishlist IDs to whatever buttons are currently in the DOM.
-   * Themes re-render cards on filter/sort, so we must re-query every time.
+   * Re-apply liked state to every heart currently in the DOM.
+   * Themes replace product cards on filter/sort, so buttons lose is-active.
    */
   function applyActiveFromCache() {
-    if (!wishlistIdCache) return;
+    var ids = wishlistIdCache;
+    if (!ids || !ids.length) {
+      // Still reset aria on fresh buttons when list is empty.
+      document.querySelectorAll("[data-wishpilot-add-btn]").forEach(function (btn) {
+        if (!btn.classList.contains("is-active")) {
+          btn.setAttribute("aria-pressed", "false");
+        }
+      });
+      return;
+    }
 
     document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
       var productId = root.getAttribute("data-product-id");
       var btn = root.querySelector("[data-wishpilot-add-btn]");
-      var inWishlist = wishlistIdCache.some(function (id) {
+      if (!btn) return;
+      var inWishlist = ids.some(function (id) {
         return productIdMatches(id, productId);
       });
       setActive(btn, inWishlist, false);
@@ -209,6 +267,24 @@
     if (settingsCache && settingsCache.primaryColor) {
       applyAdminColor(settingsCache.primaryColor);
     }
+
+    lastButtonCount = document.querySelectorAll("[data-wishpilot-add]").length;
+  }
+
+  /** Apply now + a few follow-up passes after theme AJAX finishes painting. */
+  function restoreHeartsSoon() {
+    applyActiveFromCache();
+    if (window.requestAnimationFrame) {
+      requestAnimationFrame(function () {
+        applyActiveFromCache();
+        requestAnimationFrame(applyActiveFromCache);
+      });
+    }
+    clearTimeout(applyTimer);
+    applyTimer = setTimeout(applyActiveFromCache, 50);
+    setTimeout(applyActiveFromCache, 200);
+    setTimeout(applyActiveFromCache, 500);
+    setTimeout(applyActiveFromCache, 1000);
   }
 
   function scheduleSync(delay) {
@@ -222,8 +298,7 @@
     var roots = document.querySelectorAll("[data-wishpilot-add]");
     if (!roots.length) return;
 
-    // Instant paint from cache while we refresh from the API.
-    applyActiveFromCache();
+    restoreHeartsSoon();
 
     var identity = getIdentityParams();
     if (!identity) return;
@@ -248,7 +323,9 @@
     })
       .then(parseJsonResponse)
       .then(function (result) {
-        if (!result.ok || !result.data || !result.data.items) return;
+        if (!result.ok || !result.data || !Array.isArray(result.data.items)) {
+          return;
+        }
 
         if (result.data.settings) {
           settingsCache = result.data.settings;
@@ -257,15 +334,16 @@
           }
         }
 
-        wishlistIdCache = (result.data.items || []).map(function (item) {
-          return item.productId;
-        });
+        persistIds(
+          (result.data.items || []).map(function (item) {
+            return item.productId;
+          }),
+        );
 
-        // Always re-query DOM — filter/sort may have replaced cards mid-request.
-        applyActiveFromCache();
+        restoreHeartsSoon();
       })
       .catch(function () {
-        /* silent — page still usable */
+        /* keep local cache */
       })
       .finally(function () {
         syncInFlight = false;
@@ -307,15 +385,7 @@
           return;
         }
 
-        var productId = payload.productId;
-        if (productId) {
-          wishlistIdCache = wishlistIdCache || [];
-          var already = wishlistIdCache.some(function (id) {
-            return productIdMatches(id, productId);
-          });
-          if (!already) wishlistIdCache.push(productId);
-        }
-
+        addIdToCache(payload.productId);
         setActive(btn, true, true);
         showToast(
           root,
@@ -359,12 +429,7 @@
           return;
         }
 
-        if (wishlistIdCache && payload.productId) {
-          wishlistIdCache = wishlistIdCache.filter(function (id) {
-            return !productIdMatches(id, payload.productId);
-          });
-        }
-
+        removeIdFromCache(payload.productId);
         setActive(btn, false, false);
         showToast(
           root,
@@ -382,11 +447,18 @@
 
   function nodeHasWishpilot(node) {
     if (!node || node.nodeType !== 1) return false;
-    if (node.matches && node.matches("[data-wishpilot-add]")) return true;
+    if (node.matches && node.matches("[data-wishpilot-add], [data-wishpilot-add-btn]")) {
+      return true;
+    }
     if (node.querySelector && node.querySelector("[data-wishpilot-add]")) {
       return true;
     }
     return false;
+  }
+
+  function onGridPossiblyUpdated() {
+    restoreHeartsSoon();
+    scheduleSync(180);
   }
 
   function watchDomForRerenders() {
@@ -394,15 +466,23 @@
 
     var observer = new MutationObserver(function (mutations) {
       for (var i = 0; i < mutations.length; i++) {
-        var added = mutations[i].addedNodes;
-        for (var j = 0; j < added.length; j++) {
-          if (nodeHasWishpilot(added[j])) {
-            // Apply cache immediately so hearts don't flash as empty.
-            applyActiveFromCache();
-            scheduleSync(150);
-            return;
+        var mutation = mutations[i];
+        if (mutation.type === "childList") {
+          var added = mutation.addedNodes;
+          for (var j = 0; j < added.length; j++) {
+            if (nodeHasWishpilot(added[j])) {
+              onGridPossiblyUpdated();
+              return;
+            }
           }
         }
+      }
+
+      // Some themes swap card contents without adding a wishpilot root as a new node.
+      var count = document.querySelectorAll("[data-wishpilot-add]").length;
+      if (count !== lastButtonCount) {
+        lastButtonCount = count;
+        onGridPossiblyUpdated();
       }
     });
 
@@ -412,45 +492,118 @@
     });
   }
 
+  function isCollectionAjaxUrl(url) {
+    if (!url) return false;
+    var href = String(url);
+    return (
+      href.indexOf("/collections/") !== -1 ||
+      href.indexOf("section_id=") !== -1 ||
+      href.indexOf("sections=") !== -1 ||
+      href.indexOf("sort_by=") !== -1 ||
+      href.indexOf("filter.") !== -1 ||
+      href.indexOf("/search") !== -1
+    );
+  }
+
   function watchThemeAjaxEvents() {
-    // Shopify section rendering / common theme filter events
     [
       "shopify:section:load",
       "shopify:section:reorder",
+      "shopify:section:select",
       "collection:updated",
       "facet:updated",
+      "facets:updated",
       "filters:updated",
       "theme:loading:end",
       "ajaxProductGridReloaded",
     ].forEach(function (eventName) {
-      document.addEventListener(eventName, function () {
-        applyActiveFromCache();
-        scheduleSync(100);
-      });
+      document.addEventListener(eventName, onGridPossiblyUpdated);
     });
 
-    // Many themes update collection via History API (filter/sort URL change)
-    window.addEventListener("popstate", function () {
-      applyActiveFromCache();
-      scheduleSync(150);
-    });
+    window.addEventListener("popstate", onGridPossiblyUpdated);
 
     var originalPushState = history.pushState;
     var originalReplaceState = history.replaceState;
 
     history.pushState = function () {
       var result = originalPushState.apply(this, arguments);
-      applyActiveFromCache();
-      scheduleSync(200);
+      onGridPossiblyUpdated();
       return result;
     };
 
     history.replaceState = function () {
       var result = originalReplaceState.apply(this, arguments);
-      applyActiveFromCache();
-      scheduleSync(200);
+      onGridPossiblyUpdated();
       return result;
     };
+
+    // Dawn / OS 2.0 facets + sort often update via fetch(section rendering)
+    if (typeof window.fetch === "function") {
+      var originalFetch = window.fetch;
+      window.fetch = function () {
+        var input = arguments[0];
+        var url =
+          typeof input === "string"
+            ? input
+            : input && input.url
+              ? input.url
+              : "";
+        var promise = originalFetch.apply(this, arguments);
+        if (isCollectionAjaxUrl(url)) {
+          promise
+            .then(function (response) {
+              // Clone not needed — we only care that the request finished.
+              onGridPossiblyUpdated();
+              return response;
+            })
+            .catch(function () {
+              /* ignore */
+            });
+        }
+        return promise;
+      };
+    }
+
+    // Sort / filter UI changes (capture so we catch theme handlers too)
+    document.addEventListener(
+      "change",
+      function (event) {
+        var el = event.target;
+        if (!el) return;
+        var name = (el.getAttribute("name") || "").toLowerCase();
+        var id = (el.id || "").toLowerCase();
+        if (
+          name.indexOf("sort") !== -1 ||
+          name.indexOf("filter") !== -1 ||
+          id.indexOf("sort") !== -1 ||
+          id.indexOf("filter") !== -1 ||
+          id.indexOf("facet") !== -1 ||
+          (el.form &&
+            (el.form.id || "").toLowerCase().indexOf("facet") !== -1)
+        ) {
+          onGridPossiblyUpdated();
+        }
+      },
+      true,
+    );
+
+    document.addEventListener(
+      "submit",
+      function (event) {
+        var form = event.target;
+        if (!form) return;
+        var formId = (form.id || "").toLowerCase();
+        var formClass = (form.className || "").toLowerCase();
+        if (
+          formId.indexOf("facet") !== -1 ||
+          formClass.indexOf("facet") !== -1 ||
+          formClass.indexOf("filter") !== -1
+        ) {
+          onGridPossiblyUpdated();
+        }
+      },
+      true,
+    );
   }
 
   document.addEventListener("click", function (event) {
@@ -478,6 +631,8 @@
   });
 
   function boot() {
+    wishlistIdCache = loadPersistedIds();
+    applyActiveFromCache();
     loadSettings().finally(function () {
       syncActiveButtons();
       watchDomForRerenders();

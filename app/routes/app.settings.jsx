@@ -402,6 +402,12 @@ function SettingToggle({
   badge,
   badgeTone,
 }) {
+  const [enabled, setEnabled] = useState(Boolean(checked));
+
+  useEffect(() => {
+    setEnabled(Boolean(checked));
+  }, [checked]);
+
   return (
     <div className={admin.settingsToggle}>
       <div className={admin.settingsToggleCopy}>
@@ -413,12 +419,16 @@ function SettingToggle({
         </div>
         <p className={admin.settingsToggleDesc}>{description}</p>
       </div>
+      {/* Always submit on/off — Polaris s-checkbox name/value is unreliable in RR forms */}
+      <input type="hidden" name={name} value={enabled ? "on" : "off"} />
       <s-checkbox
         label={title}
-        name={name}
-        value="on"
         labelAccessibilityVisibility="exclusive"
-        {...(checked ? { checked: true } : {})}
+        checked={enabled}
+        onClick={(event) => {
+          event.preventDefault();
+          setEnabled((prev) => !prev);
+        }}
       />
     </div>
   );

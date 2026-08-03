@@ -355,6 +355,7 @@
     }
 
     function bootAsGuestOrLogin(settings) {
+      // Logged-in customer: merge any guest items, then show their list
       if (customerId) {
         if (loginPrompt) loginPrompt.hidden = true;
         if (toolbar) toolbar.hidden = false;
@@ -365,12 +366,17 @@
         return;
       }
 
-      if (settings && settings.requireLoginForWishlistPage) {
+      var allowGuest = !!(settings && settings.allowGuestWishlist);
+      var requireLogin = !!(settings && settings.requireLoginForWishlistPage);
+
+      // Require login for page → guests must sign in to see the list
+      if (requireLogin) {
         showLoginRequired();
         return;
       }
 
-      if (settings && settings.allowGuestWishlist) {
+      // Allow guest wishlist → guests can view their list without login
+      if (allowGuest) {
         guestId = getGuestId() || "";
         if (loginPrompt) loginPrompt.hidden = true;
         if (toolbar) toolbar.hidden = false;
@@ -378,6 +384,7 @@
         return;
       }
 
+      // Both off → login required (same as cannot view as guest)
       showLoginRequired();
     }
 

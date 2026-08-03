@@ -157,13 +157,13 @@ export default function SettingsPage() {
                 />
                 <SettingToggle
                   title="Allow guest wishlist"
-                  description="Let shoppers save products without signing in."
+                  description="When on, shoppers can save products and view their wishlist page without signing in. If this and “Require login for Wishlist page” are both off, shoppers must sign in to add items."
                   name="allowGuestWishlist"
                   checked={current.allowGuestWishlist}
                 />
                 <SettingToggle
                   title="Require customer login to view Wishlist page"
-                  description="When on, guests must sign in to open the wishlist page. Guest saves are merged into their account after login."
+                  description="When on, guests must sign in to open the wishlist page and see their list. Guest saves still merge into their account after login."
                   name="requireLoginForWishlistPage"
                   checked={current.requireLoginForWishlistPage}
                 />
@@ -342,14 +342,22 @@ export default function SettingsPage() {
               </div>
               <div className={admin.metaItem}>
                 <dt>Guests</dt>
-                <dd>{current.allowGuestWishlist ? "Allowed" : "Off"}</dd>
+                <dd>
+                  {!current.allowGuestWishlist
+                    ? "Login required to add"
+                    : current.requireLoginForWishlistPage
+                      ? "Can save (login to view page)"
+                      : "Can save & view wishlist"}
+                </dd>
               </div>
               <div className={admin.metaItem}>
                 <dt>Wishlist page login</dt>
                 <dd>
                   {current.requireLoginForWishlistPage
-                    ? "Required"
-                    : "Optional"}
+                    ? "Required to view page"
+                    : current.allowGuestWishlist
+                      ? "Guests can open page"
+                      : "Login required"}
                 </dd>
               </div>
               <div className={admin.metaItem}>

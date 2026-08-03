@@ -298,14 +298,18 @@
     if (meta.customerId) {
       return { customerId: meta.customerId, guestId: null };
     }
-    if (settingsCache && settingsCache.allowGuestWishlist) {
+    // Guests only when explicitly allowed
+    if (settingsCache && settingsCache.allowGuestWishlist === true) {
       var guestId = getGuestId();
       if (!guestId) return null;
       return { customerId: null, guestId: guestId };
     }
-    // Guest setting unknown yet — still try guest id so boot can hydrate
-    var fallbackGuest = peekGuestId() || getGuestId();
-    if (fallbackGuest) return { customerId: null, guestId: fallbackGuest };
+    if (settingsCache && settingsCache.allowGuestWishlist === false) {
+      return null;
+    }
+    // Settings not loaded yet — hydrate from existing guest id only
+    var existingGuest = peekGuestId();
+    if (existingGuest) return { customerId: null, guestId: existingGuest };
     return null;
   }
 
@@ -401,10 +405,10 @@
   function resolveIdentity(root) {
     var customerId = root.getAttribute("data-customer-id") || "";
     if (customerId) return { customerId: customerId, guestId: "" };
-    if (settingsCache && settingsCache.allowGuestWishlist === false) {
+    // Both off (or guests disabled) → require login to add
+    if (!settingsCache || settingsCache.allowGuestWishlist !== true) {
       return { customerId: "", guestId: "", loginRequired: true };
     }
-    // Allow guest if setting unknown or true (collection paste often boots before settings load)
     var guestId = getGuestId();
     if (!guestId) return { customerId: "", guestId: "", loginRequired: true };
     return { customerId: "", guestId: guestId };

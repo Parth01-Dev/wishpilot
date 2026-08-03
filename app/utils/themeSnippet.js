@@ -1,12 +1,27 @@
 /**
  * Liquid merchants paste into card-product.liquid (or equivalent).
- * Requires the WishPilot app embed so CSS/JS load on every page.
+ * Loads WishPilot CSS/JS via app proxy so collection filters keep working
+ * even when the theme app embed is off.
  */
 export const WISHLIST_CARD_SNIPPET = `{% comment %}
   WishPilot — Add to Wishlist button
   Paste into snippets/card-product.liquid (or your theme's product card).
   Place near the product image or title. Uses "card_product" or "product".
 {% endcomment %}
+{% unless wishpilot_assets_included %}
+  {% assign wishpilot_assets_included = true %}
+  <link rel="stylesheet" href="/apps/wish-pilot/sf/add.css" media="all">
+  <script>
+    (function () {
+      if (window.__wishpilotScriptRequested) return;
+      window.__wishpilotScriptRequested = true;
+      var s = document.createElement("script");
+      s.src = "/apps/wish-pilot/sf/add.js";
+      s.defer = true;
+      document.head.appendChild(s);
+    })();
+  </script>
+{% endunless %}
 {% assign wp_product = product %}
 {% if card_product %}
   {% assign wp_product = card_product %}

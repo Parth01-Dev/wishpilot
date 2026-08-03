@@ -427,17 +427,20 @@ function ThemeSnippetSection() {
             <div>
               <p className={admin.settingsStepTitle}>Enable the app embed</p>
               <p className={admin.settingsStepDesc}>
-                Themes → Customize → App embeds → turn on WishPilot.
+                Themes → Customize → App embeds → turn on WishPilot (recommended).
               </p>
             </div>
           </div>
           <div className={admin.settingsStep}>
             <span className={admin.settingsStepNum}>2</span>
             <div>
-              <p className={admin.settingsStepTitle}>Edit product card snippet</p>
+              <p className={admin.settingsStepTitle}>
+                Re-paste the product card snippet
+              </p>
               <p className={admin.settingsStepDesc}>
-                Themes → Edit code → open snippets/card-product.liquid and paste
-                near the product image.
+                Themes → Edit code → open snippets/card-product.liquid, replace
+                any older WishPilot block with the code below, then save. The
+                new snippet loads wishlist JS so filter/sort keeps hearts filled.
               </p>
             </div>
           </div>

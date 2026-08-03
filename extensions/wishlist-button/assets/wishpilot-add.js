@@ -6,6 +6,11 @@
   var GUEST_KEY = "wishpilot_guest_id";
   var POP_MS = 380;
   var settingsCache = null;
+  /** Cached wishlist product IDs (normalized) for fast re-sync after AJAX filter/sort. */
+  var wishlistIdCache = null;
+  var syncTimer = null;
+  var syncInFlight = false;
+  var syncQueued = false;
 
   function showToast(root, message) {
     var toast = root.querySelector("[data-wishpilot-toast]");
@@ -163,6 +168,114 @@
     return { customerId: "", guestId: guestId };
   }
 
+  function getIdentityParams() {
+    var roots = document.querySelectorAll("[data-wishpilot-add]");
+    var customerId = "";
+    roots.forEach(function (root) {
+      if (!customerId) {
+        customerId = root.getAttribute("data-customer-id") || "";
+      }
+    });
+
+    if (customerId) {
+      return { customerId: customerId, guestId: null };
+    }
+
+    if (settingsCache && settingsCache.allowGuestWishlist) {
+      var guestId = getGuestId();
+      if (!guestId) return null;
+      return { customerId: null, guestId: guestId };
+    }
+
+    return null;
+  }
+
+  /**
+   * Apply cached wishlist IDs to whatever buttons are currently in the DOM.
+   * Themes re-render cards on filter/sort, so we must re-query every time.
+   */
+  function applyActiveFromCache() {
+    if (!wishlistIdCache) return;
+
+    document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
+      var productId = root.getAttribute("data-product-id");
+      var btn = root.querySelector("[data-wishpilot-add-btn]");
+      var inWishlist = wishlistIdCache.some(function (id) {
+        return productIdMatches(id, productId);
+      });
+      setActive(btn, inWishlist, false);
+    });
+
+    if (settingsCache && settingsCache.primaryColor) {
+      applyAdminColor(settingsCache.primaryColor);
+    }
+  }
+
+  function scheduleSync(delay) {
+    clearTimeout(syncTimer);
+    syncTimer = setTimeout(function () {
+      syncActiveButtons();
+    }, typeof delay === "number" ? delay : 120);
+  }
+
+  function syncActiveButtons() {
+    var roots = document.querySelectorAll("[data-wishpilot-add]");
+    if (!roots.length) return;
+
+    // Instant paint from cache while we refresh from the API.
+    applyActiveFromCache();
+
+    var identity = getIdentityParams();
+    if (!identity) return;
+
+    if (syncInFlight) {
+      syncQueued = true;
+      return;
+    }
+    syncInFlight = true;
+
+    var params = new URLSearchParams();
+    params.set("pageSize", "250");
+    if (identity.customerId) {
+      params.set("customerId", identity.customerId);
+    } else {
+      params.set("guestId", identity.guestId);
+    }
+
+    fetch(PROXY_BASE + "?" + params.toString(), {
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+    })
+      .then(parseJsonResponse)
+      .then(function (result) {
+        if (!result.ok || !result.data || !result.data.items) return;
+
+        if (result.data.settings) {
+          settingsCache = result.data.settings;
+          if (result.data.settings.primaryColor) {
+            applyAdminColor(result.data.settings.primaryColor);
+          }
+        }
+
+        wishlistIdCache = (result.data.items || []).map(function (item) {
+          return item.productId;
+        });
+
+        // Always re-query DOM — filter/sort may have replaced cards mid-request.
+        applyActiveFromCache();
+      })
+      .catch(function () {
+        /* silent — page still usable */
+      })
+      .finally(function () {
+        syncInFlight = false;
+        if (syncQueued) {
+          syncQueued = false;
+          scheduleSync(50);
+        }
+      });
+  }
+
   function addToWishlist(root, btn) {
     var identity = resolveIdentity(root);
     if (identity.loginRequired) {
@@ -193,6 +306,16 @@
           );
           return;
         }
+
+        var productId = payload.productId;
+        if (productId) {
+          wishlistIdCache = wishlistIdCache || [];
+          var already = wishlistIdCache.some(function (id) {
+            return productIdMatches(id, productId);
+          });
+          if (!already) wishlistIdCache.push(productId);
+        }
+
         setActive(btn, true, true);
         showToast(
           root,
@@ -235,6 +358,13 @@
           );
           return;
         }
+
+        if (wishlistIdCache && payload.productId) {
+          wishlistIdCache = wishlistIdCache.filter(function (id) {
+            return !productIdMatches(id, payload.productId);
+          });
+        }
+
         setActive(btn, false, false);
         showToast(
           root,
@@ -250,61 +380,77 @@
       });
   }
 
-  function syncActiveButtons() {
-    var roots = document.querySelectorAll("[data-wishpilot-add]");
-    if (!roots.length) return;
+  function nodeHasWishpilot(node) {
+    if (!node || node.nodeType !== 1) return false;
+    if (node.matches && node.matches("[data-wishpilot-add]")) return true;
+    if (node.querySelector && node.querySelector("[data-wishpilot-add]")) {
+      return true;
+    }
+    return false;
+  }
 
-    var customerId = "";
-    roots.forEach(function (root) {
-      if (!customerId) {
-        customerId = root.getAttribute("data-customer-id") || "";
+  function watchDomForRerenders() {
+    if (!window.MutationObserver) return;
+
+    var observer = new MutationObserver(function (mutations) {
+      for (var i = 0; i < mutations.length; i++) {
+        var added = mutations[i].addedNodes;
+        for (var j = 0; j < added.length; j++) {
+          if (nodeHasWishpilot(added[j])) {
+            // Apply cache immediately so hearts don't flash as empty.
+            applyActiveFromCache();
+            scheduleSync(150);
+            return;
+          }
+        }
       }
     });
 
-    var params = new URLSearchParams();
-    params.set("pageSize", "250");
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+    });
+  }
 
-    if (customerId) {
-      params.set("customerId", customerId);
-    } else if (settingsCache && settingsCache.allowGuestWishlist) {
-      var guestId = getGuestId();
-      if (!guestId) return;
-      params.set("guestId", guestId);
-    } else {
-      return;
-    }
-
-    fetch(PROXY_BASE + "?" + params.toString(), {
-      headers: { Accept: "application/json" },
-      credentials: "same-origin",
-    })
-      .then(parseJsonResponse)
-      .then(function (result) {
-        if (!result.ok || !result.data || !result.data.items) return;
-
-        if (result.data.settings) {
-          settingsCache = result.data.settings;
-          if (result.data.settings.primaryColor) {
-            applyAdminColor(result.data.settings.primaryColor);
-          }
-        }
-
-        var wishlistIds = (result.data.items || []).map(function (item) {
-          return item.productId;
-        });
-
-        roots.forEach(function (root) {
-          var productId = root.getAttribute("data-product-id");
-          var btn = root.querySelector("[data-wishpilot-add-btn]");
-          var inWishlist = wishlistIds.some(function (id) {
-            return productIdMatches(id, productId);
-          });
-          setActive(btn, inWishlist, false);
-        });
-      })
-      .catch(function () {
-        /* silent — page still usable */
+  function watchThemeAjaxEvents() {
+    // Shopify section rendering / common theme filter events
+    [
+      "shopify:section:load",
+      "shopify:section:reorder",
+      "collection:updated",
+      "facet:updated",
+      "filters:updated",
+      "theme:loading:end",
+      "ajaxProductGridReloaded",
+    ].forEach(function (eventName) {
+      document.addEventListener(eventName, function () {
+        applyActiveFromCache();
+        scheduleSync(100);
       });
+    });
+
+    // Many themes update collection via History API (filter/sort URL change)
+    window.addEventListener("popstate", function () {
+      applyActiveFromCache();
+      scheduleSync(150);
+    });
+
+    var originalPushState = history.pushState;
+    var originalReplaceState = history.replaceState;
+
+    history.pushState = function () {
+      var result = originalPushState.apply(this, arguments);
+      applyActiveFromCache();
+      scheduleSync(200);
+      return result;
+    };
+
+    history.replaceState = function () {
+      var result = originalReplaceState.apply(this, arguments);
+      applyActiveFromCache();
+      scheduleSync(200);
+      return result;
+    };
   }
 
   document.addEventListener("click", function (event) {
@@ -332,7 +478,11 @@
   });
 
   function boot() {
-    loadSettings().finally(syncActiveButtons);
+    loadSettings().finally(function () {
+      syncActiveButtons();
+      watchDomForRerenders();
+      watchThemeAjaxEvents();
+    });
   }
 
   if (document.readyState === "loading") {

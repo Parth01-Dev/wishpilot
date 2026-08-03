@@ -2,20 +2,21 @@
   if (window.__wishpilotAddBound) return;
   window.__wishpilotAddBound = true;
 
+  // WishPilot collection sync v3 — re-applies liked state after Dawn filter/sort AJAX
   var PROXY_BASE = "/apps/wish-pilot";
   var GUEST_KEY = "wishpilot_guest_id";
   var CACHE_KEY = "wishpilot_wishlist_ids";
   var POP_MS = 380;
+  var RECONCILE_MS = 400;
 
   var settingsCache = null;
-  var wishlistIds = Object.create(null); // normalizedId -> true
+  var wishlistIds = Object.create(null);
   var syncInFlight = false;
   var syncQueued = false;
   var applyTimer = null;
+  var serverRefreshTimer = null;
   var lastGridSignature = "";
   var watchersReady = false;
-
-  /* ---------------- helpers ---------------- */
 
   function normalizeProductId(id) {
     if (!id) return "";
@@ -116,6 +117,10 @@
     return !!wishlistIds[normalizeProductId(productId)];
   }
 
+  function wishlistCount() {
+    return Object.keys(wishlistIds).length;
+  }
+
   function applyAdminColor(color) {
     if (!color) return;
     document.documentElement.style.setProperty("--wishpilot-color", color);
@@ -163,14 +168,17 @@
   function getGridSignature() {
     var parts = [];
     document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
-      parts.push(root.getAttribute("data-product-id") || "");
+      var id = root.getAttribute("data-product-id") || "";
+      var btn = root.querySelector("[data-wishpilot-add-btn]");
+      var active = btn && btn.classList.contains("is-active") ? "1" : "0";
+      parts.push(id + ":" + active);
     });
     return parts.join("|");
   }
 
   /**
-   * Apply liked/unliked from in-memory cache to every visible button.
-   * No network — safe to call after every AJAX grid re-render.
+   * Paint liked/unliked from cache onto whatever buttons are in the DOM now.
+   * Called after Dawn filter/sort replaces #ProductGridContainer.
    */
   function applyWishlistState() {
     document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
@@ -185,10 +193,6 @@
     lastGridSignature = getGridSignature();
   }
 
-  /**
-   * Re-apply immediately and again after the theme finishes painting
-   * (Section Rendering / filter AJAX often updates DOM after fetch resolves).
-   */
   function reapplyAfterGridUpdate() {
     applyWishlistState();
     if (window.requestAnimationFrame) {
@@ -199,25 +203,47 @@
     }
     clearTimeout(applyTimer);
     applyTimer = setTimeout(applyWishlistState, 0);
-    setTimeout(applyWishlistState, 100);
-    setTimeout(applyWishlistState, 300);
-    setTimeout(applyWishlistState, 700);
+    setTimeout(applyWishlistState, 80);
+    setTimeout(applyWishlistState, 250);
+    setTimeout(applyWishlistState, 600);
+    setTimeout(applyWishlistState, 1200);
+  }
+
+  /**
+   * If any wishlisted product is missing is-active, fix it.
+   * Cheap safety net for themes that re-render after our first apply.
+   */
+  function reconcileLikedIcons() {
+    if (!wishlistCount()) return;
+    var fixed = false;
+    document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
+      var productId = root.getAttribute("data-product-id");
+      var btn = root.querySelector("[data-wishpilot-add-btn]");
+      if (!btn) return;
+      var should = isWishlisted(productId);
+      var has = btn.classList.contains("is-active");
+      if (should !== has) {
+        setActive(btn, should, false);
+        fixed = true;
+      }
+    });
+    if (fixed && settingsCache && settingsCache.primaryColor) {
+      applyAdminColor(settingsCache.primaryColor);
+    }
   }
 
   function getIdentityParams() {
     var customerId = "";
     document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
-      if (!customerId) {
-        customerId = root.getAttribute("data-customer-id") || "";
-      }
+      if (!customerId) customerId = root.getAttribute("data-customer-id") || "";
     });
     if (!customerId) {
-      var page = document.querySelector("[data-wishpilot-page], [data-wishpilot-header]");
-      if (page) customerId = page.getAttribute("data-customer-id") || "";
+      var meta = document.querySelector(
+        "[data-wishpilot-page], [data-wishpilot-header]",
+      );
+      if (meta) customerId = meta.getAttribute("data-customer-id") || "";
     }
-
     if (customerId) return { customerId: customerId, guestId: null };
-
     if (settingsCache && settingsCache.allowGuestWishlist) {
       var guestId = getGuestId();
       if (!guestId) return null;
@@ -226,17 +252,12 @@
     return null;
   }
 
-  /**
-   * Fetch wishlist from server once (boot / after add-remove).
-   * Filter/sort must NOT call this — only applyWishlistState().
-   */
   function fetchWishlistFromServer() {
     var identity = getIdentityParams();
     if (!identity) {
       applyWishlistState();
       return Promise.resolve();
     }
-
     if (syncInFlight) {
       syncQueued = true;
       return Promise.resolve();
@@ -276,7 +297,18 @@
       });
   }
 
-  /* ---------------- click actions ---------------- */
+  /** One debounced server refresh after grid AJAX — keeps cache warm, avoids spam. */
+  function scheduleServerRefresh() {
+    clearTimeout(serverRefreshTimer);
+    serverRefreshTimer = setTimeout(function () {
+      fetchWishlistFromServer();
+    }, 500);
+  }
+
+  function onCollectionGridUpdated() {
+    reapplyAfterGridUpdate();
+    scheduleServerRefresh();
+  }
 
   function buildPayload(root) {
     var rawPrice = root.getAttribute("data-price");
@@ -325,12 +357,19 @@
 
     postJson("/add", payload)
       .then(function (result) {
-        if (result.status === 401 && result.data && result.data.code === "LOGIN_REQUIRED") {
+        if (
+          result.status === 401 &&
+          result.data &&
+          result.data.code === "LOGIN_REQUIRED"
+        ) {
           showToast(root, "Please sign in to save to your wishlist");
           return;
         }
         if (!result.ok) {
-          showToast(root, (result.data && result.data.error) || "Could not update wishlist");
+          showToast(
+            root,
+            (result.data && result.data.error) || "Could not update wishlist",
+          );
           return;
         }
         markWishlisted(payload.productId, true);
@@ -369,12 +408,18 @@
     })
       .then(function (result) {
         if (!result.ok) {
-          showToast(root, (result.data && result.data.error) || "Could not update wishlist");
+          showToast(
+            root,
+            (result.data && result.data.error) || "Could not update wishlist",
+          );
           return;
         }
         markWishlisted(payload.productId, false);
         setActive(btn, false, false);
-        showToast(root, (result.data && result.data.toast) || "Removed from Wishlist");
+        showToast(
+          root,
+          (result.data && result.data.toast) || "Removed from Wishlist",
+        );
         document.dispatchEvent(new CustomEvent("wishpilot:updated"));
       })
       .catch(function () {
@@ -385,41 +430,45 @@
       });
   }
 
-  /* ---------------- grid update detection ---------------- */
-
   function nodeContainsWishpilot(node) {
     if (!node) return false;
-    // Element
     if (node.nodeType === 1) {
       if (node.matches && node.matches("[data-wishpilot-add]")) return true;
-      if (node.querySelector && node.querySelector("[data-wishpilot-add]")) return true;
+      if (node.querySelector && node.querySelector("[data-wishpilot-add]")) {
+        return true;
+      }
+      // Dawn replaces whole #ProductGridContainer
+      if (
+        node.id === "ProductGridContainer" ||
+        (node.classList &&
+          (node.classList.contains("product-grid-container") ||
+            node.classList.contains("product-grid") ||
+            node.classList.contains("collection")))
+      ) {
+        return true;
+      }
       return false;
     }
-    // DocumentFragment (innerHTML parse batches)
     if (node.nodeType === 11 && node.querySelector) {
-      return !!node.querySelector("[data-wishpilot-add]");
+      return !!node.querySelector("[data-wishpilot-add], #ProductGridContainer");
     }
     return false;
   }
 
-  function onCollectionGridUpdated() {
-    reapplyAfterGridUpdate();
-  }
-
-  function maybeReapplyIfGridChanged() {
-    var signature = getGridSignature();
-    if (signature !== lastGridSignature) {
-      onCollectionGridUpdated();
-    } else {
-      // Same product IDs can be re-mounted as fresh nodes without is-active.
-      applyWishlistState();
-    }
+  function findProductGridRoot() {
+    return (
+      document.getElementById("ProductGridContainer") ||
+      document.querySelector(".product-grid-container") ||
+      document.querySelector("#main-collection-product-grid") ||
+      document.querySelector(".collection .product-grid") ||
+      document.querySelector("[data-product-grid]") ||
+      null
+    );
   }
 
   function isProductGridAjaxUrl(url) {
     if (!url) return false;
     var href = String(url);
-    // Ignore our own wishlist API
     if (href.indexOf("/apps/wish-pilot") !== -1) return false;
     return (
       href.indexOf("section_id=") !== -1 ||
@@ -435,26 +484,34 @@
     if (watchersReady) return;
     watchersReady = true;
 
-    // 1) DOM mutations — covers Section Rendering API, infinite scroll, pagination
+    // A) Observe Dawn product grid container when present
+    function observeGrid(el) {
+      if (!el || !window.MutationObserver || el.__wishpilotObserved) return;
+      el.__wishpilotObserved = true;
+      new MutationObserver(function () {
+        onCollectionGridUpdated();
+      }).observe(el, { childList: true, subtree: true });
+    }
+
+    observeGrid(findProductGridRoot());
+
+    // Re-attach if theme swaps the container node itself
     if (window.MutationObserver) {
-      var observer = new MutationObserver(function (mutations) {
+      new MutationObserver(function (mutations) {
         for (var i = 0; i < mutations.length; i++) {
           var added = mutations[i].addedNodes;
-          if (!added || !added.length) continue;
           for (var j = 0; j < added.length; j++) {
             if (nodeContainsWishpilot(added[j])) {
+              observeGrid(findProductGridRoot());
               onCollectionGridUpdated();
               return;
             }
           }
         }
-        // Fallback: product order/set changed without matching our selector check
-        maybeReapplyIfGridChanged();
-      });
-      observer.observe(document.documentElement, { childList: true, subtree: true });
+      }).observe(document.documentElement, { childList: true, subtree: true });
     }
 
-    // 2) Theme / Shopify events
+    // B) Theme events
     [
       "shopify:section:load",
       "shopify:section:reorder",
@@ -470,7 +527,6 @@
 
     window.addEventListener("popstate", onCollectionGridUpdated);
 
-    // 3) History API (Dawn facets update URL without full reload)
     var pushState = history.pushState;
     var replaceState = history.replaceState;
     history.pushState = function () {
@@ -484,7 +540,7 @@
       return result;
     };
 
-    // 4) Section Rendering / collection fetch — apply AFTER response, then again for late DOM paint
+    // C) Patch fetch (Dawn Section Rendering)
     if (typeof window.fetch === "function" && !window.__wishpilotFetchPatched) {
       window.__wishpilotFetchPatched = true;
       var originalFetch = window.fetch;
@@ -500,19 +556,16 @@
         if (isProductGridAjaxUrl(url)) {
           promise.then(
             function () {
-              // Theme usually injects HTML after this; schedule multi-pass apply.
               onCollectionGridUpdated();
             },
-            function () {
-              /* ignore */
-            },
+            function () {},
           );
         }
         return promise;
       };
     }
 
-    // 5) Sort / filter controls
+    // D) Sort / filter change
     document.addEventListener(
       "change",
       function (event) {
@@ -526,16 +579,18 @@
           name.indexOf("filter") !== -1 ||
           id.indexOf("sort") !== -1 ||
           id.indexOf("facet") !== -1 ||
-          formId.indexOf("facet") !== -1
+          formId.indexOf("facet") !== -1 ||
+          formId.indexOf("filter") !== -1
         ) {
           onCollectionGridUpdated();
         }
       },
       true,
     );
-  }
 
-  /* ---------------- boot ---------------- */
+    // E) Continuous reconcile — fixes late Dawn paints without extra API spam
+    setInterval(reconcileLikedIcons, RECONCILE_MS);
+  }
 
   document.addEventListener("click", function (event) {
     var btn = event.target.closest("[data-wishpilot-add-btn]");
@@ -549,18 +604,16 @@
       if (btn.classList.contains("is-active")) removeFromWishlist(root, btn);
       else addToWishlist(root, btn);
     };
-
     if (settingsCache) run();
     else loadSettings().finally(run);
   });
 
   document.addEventListener("wishpilot:updated", function () {
-    // Count badge etc. — refresh server list once after mutations
     fetchWishlistFromServer();
   });
 
-  // Public hook for themes that dispatch custom events after AJAX
   window.WishPilot = window.WishPilot || {};
+  window.WishPilot.version = "collection-sync-v3";
   window.WishPilot.reapplyWishlistState = function () {
     reapplyAfterGridUpdate();
   };

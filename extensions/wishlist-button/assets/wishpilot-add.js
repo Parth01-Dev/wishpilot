@@ -6,23 +6,20 @@
   var GUEST_KEY = "wishpilot_guest_id";
   var CACHE_KEY = "wishpilot_wishlist_ids";
   var POP_MS = 380;
+
   var settingsCache = null;
-  /** Normalized product ID strings currently on the wishlist. */
-  var wishlistIdCache = loadPersistedIds();
-  var syncTimer = null;
-  var applyTimer = null;
+  var wishlistIds = Object.create(null); // normalizedId -> true
   var syncInFlight = false;
   var syncQueued = false;
-  var lastButtonCount = 0;
+  var applyTimer = null;
+  var lastGridSignature = "";
+  var watchersReady = false;
 
-  function showToast(root, message) {
-    var toast = root.querySelector("[data-wishpilot-toast]");
-    if (!toast) return;
-    toast.hidden = false;
-    toast.textContent = message;
-    setTimeout(function () {
-      toast.hidden = true;
-    }, 2500);
+  /* ---------------- helpers ---------------- */
+
+  function normalizeProductId(id) {
+    if (!id) return "";
+    return String(id).replace(/^gid:\/\/shopify\/Product\//, "").trim();
   }
 
   function parseJsonResponse(res) {
@@ -48,58 +45,14 @@
     }).then(parseJsonResponse);
   }
 
-  function normalizeProductId(id) {
-    if (!id) return "";
-    return String(id).replace(/^gid:\/\/shopify\/Product\//, "").trim();
-  }
-
-  function productIdMatches(storedId, buttonId) {
-    return normalizeProductId(storedId) === normalizeProductId(buttonId);
-  }
-
-  function loadPersistedIds() {
-    try {
-      var raw = localStorage.getItem(CACHE_KEY);
-      if (!raw) return [];
-      var parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [];
-      return parsed.map(normalizeProductId).filter(Boolean);
-    } catch (e) {
-      return [];
-    }
-  }
-
-  function persistIds(ids) {
-    wishlistIdCache = (ids || []).map(normalizeProductId).filter(Boolean);
-    try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify(wishlistIdCache));
-    } catch (e) {
-      /* private mode / quota */
-    }
-  }
-
-  function addIdToCache(productId) {
-    var id = normalizeProductId(productId);
-    if (!id) return;
-    wishlistIdCache = wishlistIdCache || [];
-    if (
-      !wishlistIdCache.some(function (existing) {
-        return existing === id;
-      })
-    ) {
-      wishlistIdCache.push(id);
-      persistIds(wishlistIdCache);
-    }
-  }
-
-  function removeIdFromCache(productId) {
-    var id = normalizeProductId(productId);
-    if (!id || !wishlistIdCache) return;
-    persistIds(
-      wishlistIdCache.filter(function (existing) {
-        return existing !== id;
-      }),
-    );
+  function showToast(root, message) {
+    var toast = root.querySelector("[data-wishpilot-toast]");
+    if (!toast) return;
+    toast.hidden = false;
+    toast.textContent = message;
+    setTimeout(function () {
+      toast.hidden = true;
+    }, 2500);
   }
 
   function getGuestId() {
@@ -118,16 +71,56 @@
     }
   }
 
+  function loadPersistedIds() {
+    try {
+      var raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return;
+      var parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return;
+      wishlistIds = Object.create(null);
+      parsed.forEach(function (id) {
+        var n = normalizeProductId(id);
+        if (n) wishlistIds[n] = true;
+      });
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function persistIds() {
+    try {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(Object.keys(wishlistIds)));
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function setWishlistIdsFromServer(items) {
+    wishlistIds = Object.create(null);
+    (items || []).forEach(function (item) {
+      var n = normalizeProductId(item && item.productId);
+      if (n) wishlistIds[n] = true;
+    });
+    persistIds();
+  }
+
+  function markWishlisted(productId, wished) {
+    var n = normalizeProductId(productId);
+    if (!n) return;
+    if (wished) wishlistIds[n] = true;
+    else delete wishlistIds[n];
+    persistIds();
+  }
+
+  function isWishlisted(productId) {
+    return !!wishlistIds[normalizeProductId(productId)];
+  }
+
   function applyAdminColor(color) {
     if (!color) return;
     document.documentElement.style.setProperty("--wishpilot-color", color);
     document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
-      if (
-        !root.getAttribute("style") ||
-        root.getAttribute("style").indexOf("--wishpilot-color") === -1
-      ) {
-        root.style.setProperty("--wishpilot-color", color);
-      }
+      root.style.setProperty("--wishpilot-color", color);
     });
   }
 
@@ -167,6 +160,124 @@
     }
   }
 
+  function getGridSignature() {
+    var parts = [];
+    document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
+      parts.push(root.getAttribute("data-product-id") || "");
+    });
+    return parts.join("|");
+  }
+
+  /**
+   * Apply liked/unliked from in-memory cache to every visible button.
+   * No network — safe to call after every AJAX grid re-render.
+   */
+  function applyWishlistState() {
+    document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
+      var productId = root.getAttribute("data-product-id");
+      var btn = root.querySelector("[data-wishpilot-add-btn]");
+      if (!btn) return;
+      setActive(btn, isWishlisted(productId), false);
+    });
+    if (settingsCache && settingsCache.primaryColor) {
+      applyAdminColor(settingsCache.primaryColor);
+    }
+    lastGridSignature = getGridSignature();
+  }
+
+  /**
+   * Re-apply immediately and again after the theme finishes painting
+   * (Section Rendering / filter AJAX often updates DOM after fetch resolves).
+   */
+  function reapplyAfterGridUpdate() {
+    applyWishlistState();
+    if (window.requestAnimationFrame) {
+      requestAnimationFrame(function () {
+        applyWishlistState();
+        requestAnimationFrame(applyWishlistState);
+      });
+    }
+    clearTimeout(applyTimer);
+    applyTimer = setTimeout(applyWishlistState, 0);
+    setTimeout(applyWishlistState, 100);
+    setTimeout(applyWishlistState, 300);
+    setTimeout(applyWishlistState, 700);
+  }
+
+  function getIdentityParams() {
+    var customerId = "";
+    document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
+      if (!customerId) {
+        customerId = root.getAttribute("data-customer-id") || "";
+      }
+    });
+    if (!customerId) {
+      var page = document.querySelector("[data-wishpilot-page], [data-wishpilot-header]");
+      if (page) customerId = page.getAttribute("data-customer-id") || "";
+    }
+
+    if (customerId) return { customerId: customerId, guestId: null };
+
+    if (settingsCache && settingsCache.allowGuestWishlist) {
+      var guestId = getGuestId();
+      if (!guestId) return null;
+      return { customerId: null, guestId: guestId };
+    }
+    return null;
+  }
+
+  /**
+   * Fetch wishlist from server once (boot / after add-remove).
+   * Filter/sort must NOT call this — only applyWishlistState().
+   */
+  function fetchWishlistFromServer() {
+    var identity = getIdentityParams();
+    if (!identity) {
+      applyWishlistState();
+      return Promise.resolve();
+    }
+
+    if (syncInFlight) {
+      syncQueued = true;
+      return Promise.resolve();
+    }
+    syncInFlight = true;
+
+    var params = new URLSearchParams();
+    params.set("pageSize", "250");
+    if (identity.customerId) params.set("customerId", identity.customerId);
+    else params.set("guestId", identity.guestId);
+
+    return fetch(PROXY_BASE + "?" + params.toString(), {
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+    })
+      .then(parseJsonResponse)
+      .then(function (result) {
+        if (!result.ok || !result.data || !Array.isArray(result.data.items)) {
+          return;
+        }
+        if (result.data.settings) {
+          settingsCache = result.data.settings;
+          applyAdminColor(settingsCache.primaryColor);
+        }
+        setWishlistIdsFromServer(result.data.items);
+        applyWishlistState();
+      })
+      .catch(function () {
+        applyWishlistState();
+      })
+      .finally(function () {
+        syncInFlight = false;
+        if (syncQueued) {
+          syncQueued = false;
+          fetchWishlistFromServer();
+        }
+      });
+  }
+
+  /* ---------------- click actions ---------------- */
+
   function buildPayload(root) {
     var rawPrice = root.getAttribute("data-price");
     var price = null;
@@ -175,13 +286,7 @@
       var num = Number(cleaned);
       if (!Number.isNaN(num)) price = num;
     }
-
     var customerId = root.getAttribute("data-customer-id") || "";
-    var guestId = "";
-    if (!customerId) {
-      guestId = getGuestId() || "";
-    }
-
     return {
       productId: root.getAttribute("data-product-id"),
       variantId: root.getAttribute("data-variant-id"),
@@ -192,166 +297,19 @@
       price: price,
       customerId: customerId,
       customerEmail: root.getAttribute("data-customer-email") || "",
-      guestId: guestId,
+      guestId: customerId ? "" : getGuestId() || "",
     };
   }
 
   function resolveIdentity(root) {
     var customerId = root.getAttribute("data-customer-id") || "";
-    if (customerId) {
-      return { customerId: customerId, guestId: "" };
-    }
-
-    var allowGuest =
-      settingsCache && settingsCache.allowGuestWishlist === true;
-    if (!allowGuest) {
+    if (customerId) return { customerId: customerId, guestId: "" };
+    if (!(settingsCache && settingsCache.allowGuestWishlist)) {
       return { customerId: "", guestId: "", loginRequired: true };
     }
-
     var guestId = getGuestId();
-    if (!guestId) {
-      return { customerId: "", guestId: "", loginRequired: true };
-    }
-
+    if (!guestId) return { customerId: "", guestId: "", loginRequired: true };
     return { customerId: "", guestId: guestId };
-  }
-
-  function getIdentityParams() {
-    var roots = document.querySelectorAll("[data-wishpilot-add]");
-    var customerId = "";
-    roots.forEach(function (root) {
-      if (!customerId) {
-        customerId = root.getAttribute("data-customer-id") || "";
-      }
-    });
-
-    if (customerId) {
-      return { customerId: customerId, guestId: null };
-    }
-
-    if (settingsCache && settingsCache.allowGuestWishlist) {
-      var guestId = getGuestId();
-      if (!guestId) return null;
-      return { customerId: null, guestId: guestId };
-    }
-
-    return null;
-  }
-
-  /**
-   * Re-apply liked state to every heart currently in the DOM.
-   * Themes replace product cards on filter/sort, so buttons lose is-active.
-   */
-  function applyActiveFromCache() {
-    var ids = wishlistIdCache;
-    if (!ids || !ids.length) {
-      // Still reset aria on fresh buttons when list is empty.
-      document.querySelectorAll("[data-wishpilot-add-btn]").forEach(function (btn) {
-        if (!btn.classList.contains("is-active")) {
-          btn.setAttribute("aria-pressed", "false");
-        }
-      });
-      return;
-    }
-
-    document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
-      var productId = root.getAttribute("data-product-id");
-      var btn = root.querySelector("[data-wishpilot-add-btn]");
-      if (!btn) return;
-      var inWishlist = ids.some(function (id) {
-        return productIdMatches(id, productId);
-      });
-      setActive(btn, inWishlist, false);
-    });
-
-    if (settingsCache && settingsCache.primaryColor) {
-      applyAdminColor(settingsCache.primaryColor);
-    }
-
-    lastButtonCount = document.querySelectorAll("[data-wishpilot-add]").length;
-  }
-
-  /** Apply now + a few follow-up passes after theme AJAX finishes painting. */
-  function restoreHeartsSoon() {
-    applyActiveFromCache();
-    if (window.requestAnimationFrame) {
-      requestAnimationFrame(function () {
-        applyActiveFromCache();
-        requestAnimationFrame(applyActiveFromCache);
-      });
-    }
-    clearTimeout(applyTimer);
-    applyTimer = setTimeout(applyActiveFromCache, 50);
-    setTimeout(applyActiveFromCache, 200);
-    setTimeout(applyActiveFromCache, 500);
-    setTimeout(applyActiveFromCache, 1000);
-  }
-
-  function scheduleSync(delay) {
-    clearTimeout(syncTimer);
-    syncTimer = setTimeout(function () {
-      syncActiveButtons();
-    }, typeof delay === "number" ? delay : 120);
-  }
-
-  function syncActiveButtons() {
-    var roots = document.querySelectorAll("[data-wishpilot-add]");
-    if (!roots.length) return;
-
-    restoreHeartsSoon();
-
-    var identity = getIdentityParams();
-    if (!identity) return;
-
-    if (syncInFlight) {
-      syncQueued = true;
-      return;
-    }
-    syncInFlight = true;
-
-    var params = new URLSearchParams();
-    params.set("pageSize", "250");
-    if (identity.customerId) {
-      params.set("customerId", identity.customerId);
-    } else {
-      params.set("guestId", identity.guestId);
-    }
-
-    fetch(PROXY_BASE + "?" + params.toString(), {
-      headers: { Accept: "application/json" },
-      credentials: "same-origin",
-    })
-      .then(parseJsonResponse)
-      .then(function (result) {
-        if (!result.ok || !result.data || !Array.isArray(result.data.items)) {
-          return;
-        }
-
-        if (result.data.settings) {
-          settingsCache = result.data.settings;
-          if (result.data.settings.primaryColor) {
-            applyAdminColor(result.data.settings.primaryColor);
-          }
-        }
-
-        persistIds(
-          (result.data.items || []).map(function (item) {
-            return item.productId;
-          }),
-        );
-
-        restoreHeartsSoon();
-      })
-      .catch(function () {
-        /* keep local cache */
-      })
-      .finally(function () {
-        syncInFlight = false;
-        if (syncQueued) {
-          syncQueued = false;
-          scheduleSync(50);
-        }
-      });
   }
 
   function addToWishlist(root, btn) {
@@ -360,32 +318,22 @@
       showToast(root, "Please sign in to save to your wishlist");
       return;
     }
-
     var payload = buildPayload(root);
     payload.customerId = identity.customerId;
     payload.guestId = identity.guestId;
-
     btn.disabled = true;
 
     postJson("/add", payload)
       .then(function (result) {
-        if (
-          result.status === 401 &&
-          result.data &&
-          result.data.code === "LOGIN_REQUIRED"
-        ) {
+        if (result.status === 401 && result.data && result.data.code === "LOGIN_REQUIRED") {
           showToast(root, "Please sign in to save to your wishlist");
           return;
         }
         if (!result.ok) {
-          showToast(
-            root,
-            (result.data && result.data.error) || "Could not update wishlist",
-          );
+          showToast(root, (result.data && result.data.error) || "Could not update wishlist");
           return;
         }
-
-        addIdToCache(payload.productId);
+        markWishlisted(payload.productId, true);
         setActive(btn, true, true);
         showToast(
           root,
@@ -410,7 +358,6 @@
       showToast(root, "Please sign in to save to your wishlist");
       return;
     }
-
     var payload = buildPayload(root);
     btn.disabled = true;
 
@@ -422,19 +369,12 @@
     })
       .then(function (result) {
         if (!result.ok) {
-          showToast(
-            root,
-            (result.data && result.data.error) || "Could not update wishlist",
-          );
+          showToast(root, (result.data && result.data.error) || "Could not update wishlist");
           return;
         }
-
-        removeIdFromCache(payload.productId);
+        markWishlisted(payload.productId, false);
         setActive(btn, false, false);
-        showToast(
-          root,
-          (result.data && result.data.toast) || "Removed from Wishlist",
-        );
+        showToast(root, (result.data && result.data.toast) || "Removed from Wishlist");
         document.dispatchEvent(new CustomEvent("wishpilot:updated"));
       })
       .catch(function () {
@@ -445,100 +385,108 @@
       });
   }
 
-  function nodeHasWishpilot(node) {
-    if (!node || node.nodeType !== 1) return false;
-    if (node.matches && node.matches("[data-wishpilot-add], [data-wishpilot-add-btn]")) {
-      return true;
+  /* ---------------- grid update detection ---------------- */
+
+  function nodeContainsWishpilot(node) {
+    if (!node) return false;
+    // Element
+    if (node.nodeType === 1) {
+      if (node.matches && node.matches("[data-wishpilot-add]")) return true;
+      if (node.querySelector && node.querySelector("[data-wishpilot-add]")) return true;
+      return false;
     }
-    if (node.querySelector && node.querySelector("[data-wishpilot-add]")) {
-      return true;
+    // DocumentFragment (innerHTML parse batches)
+    if (node.nodeType === 11 && node.querySelector) {
+      return !!node.querySelector("[data-wishpilot-add]");
     }
     return false;
   }
 
-  function onGridPossiblyUpdated() {
-    restoreHeartsSoon();
-    scheduleSync(180);
+  function onCollectionGridUpdated() {
+    reapplyAfterGridUpdate();
   }
 
-  function watchDomForRerenders() {
-    if (!window.MutationObserver) return;
-
-    var observer = new MutationObserver(function (mutations) {
-      for (var i = 0; i < mutations.length; i++) {
-        var mutation = mutations[i];
-        if (mutation.type === "childList") {
-          var added = mutation.addedNodes;
-          for (var j = 0; j < added.length; j++) {
-            if (nodeHasWishpilot(added[j])) {
-              onGridPossiblyUpdated();
-              return;
-            }
-          }
-        }
-      }
-
-      // Some themes swap card contents without adding a wishpilot root as a new node.
-      var count = document.querySelectorAll("[data-wishpilot-add]").length;
-      if (count !== lastButtonCount) {
-        lastButtonCount = count;
-        onGridPossiblyUpdated();
-      }
-    });
-
-    observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-    });
+  function maybeReapplyIfGridChanged() {
+    var signature = getGridSignature();
+    if (signature !== lastGridSignature) {
+      onCollectionGridUpdated();
+    } else {
+      // Same product IDs can be re-mounted as fresh nodes without is-active.
+      applyWishlistState();
+    }
   }
 
-  function isCollectionAjaxUrl(url) {
+  function isProductGridAjaxUrl(url) {
     if (!url) return false;
     var href = String(url);
+    // Ignore our own wishlist API
+    if (href.indexOf("/apps/wish-pilot") !== -1) return false;
     return (
-      href.indexOf("/collections/") !== -1 ||
       href.indexOf("section_id=") !== -1 ||
       href.indexOf("sections=") !== -1 ||
       href.indexOf("sort_by=") !== -1 ||
       href.indexOf("filter.") !== -1 ||
+      href.indexOf("/collections/") !== -1 ||
       href.indexOf("/search") !== -1
     );
   }
 
-  function watchThemeAjaxEvents() {
+  function installGridWatchers() {
+    if (watchersReady) return;
+    watchersReady = true;
+
+    // 1) DOM mutations — covers Section Rendering API, infinite scroll, pagination
+    if (window.MutationObserver) {
+      var observer = new MutationObserver(function (mutations) {
+        for (var i = 0; i < mutations.length; i++) {
+          var added = mutations[i].addedNodes;
+          if (!added || !added.length) continue;
+          for (var j = 0; j < added.length; j++) {
+            if (nodeContainsWishpilot(added[j])) {
+              onCollectionGridUpdated();
+              return;
+            }
+          }
+        }
+        // Fallback: product order/set changed without matching our selector check
+        maybeReapplyIfGridChanged();
+      });
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+    }
+
+    // 2) Theme / Shopify events
     [
       "shopify:section:load",
       "shopify:section:reorder",
-      "shopify:section:select",
       "collection:updated",
       "facet:updated",
       "facets:updated",
       "filters:updated",
       "theme:loading:end",
       "ajaxProductGridReloaded",
-    ].forEach(function (eventName) {
-      document.addEventListener(eventName, onGridPossiblyUpdated);
+    ].forEach(function (name) {
+      document.addEventListener(name, onCollectionGridUpdated);
     });
 
-    window.addEventListener("popstate", onGridPossiblyUpdated);
+    window.addEventListener("popstate", onCollectionGridUpdated);
 
-    var originalPushState = history.pushState;
-    var originalReplaceState = history.replaceState;
-
+    // 3) History API (Dawn facets update URL without full reload)
+    var pushState = history.pushState;
+    var replaceState = history.replaceState;
     history.pushState = function () {
-      var result = originalPushState.apply(this, arguments);
-      onGridPossiblyUpdated();
+      var result = pushState.apply(this, arguments);
+      onCollectionGridUpdated();
       return result;
     };
-
     history.replaceState = function () {
-      var result = originalReplaceState.apply(this, arguments);
-      onGridPossiblyUpdated();
+      var result = replaceState.apply(this, arguments);
+      onCollectionGridUpdated();
       return result;
     };
 
-    // Dawn / OS 2.0 facets + sort often update via fetch(section rendering)
-    if (typeof window.fetch === "function") {
+    // 4) Section Rendering / collection fetch — apply AFTER response, then again for late DOM paint
+    if (typeof window.fetch === "function" && !window.__wishpilotFetchPatched) {
+      window.__wishpilotFetchPatched = true;
       var originalFetch = window.fetch;
       window.fetch = function () {
         var input = arguments[0];
@@ -549,22 +497,22 @@
               ? input.url
               : "";
         var promise = originalFetch.apply(this, arguments);
-        if (isCollectionAjaxUrl(url)) {
-          promise
-            .then(function (response) {
-              // Clone not needed — we only care that the request finished.
-              onGridPossiblyUpdated();
-              return response;
-            })
-            .catch(function () {
+        if (isProductGridAjaxUrl(url)) {
+          promise.then(
+            function () {
+              // Theme usually injects HTML after this; schedule multi-pass apply.
+              onCollectionGridUpdated();
+            },
+            function () {
               /* ignore */
-            });
+            },
+          );
         }
         return promise;
       };
     }
 
-    // Sort / filter UI changes (capture so we catch theme handlers too)
+    // 5) Sort / filter controls
     document.addEventListener(
       "change",
       function (event) {
@@ -572,39 +520,22 @@
         if (!el) return;
         var name = (el.getAttribute("name") || "").toLowerCase();
         var id = (el.id || "").toLowerCase();
+        var formId = el.form ? (el.form.id || "").toLowerCase() : "";
         if (
           name.indexOf("sort") !== -1 ||
           name.indexOf("filter") !== -1 ||
           id.indexOf("sort") !== -1 ||
-          id.indexOf("filter") !== -1 ||
           id.indexOf("facet") !== -1 ||
-          (el.form &&
-            (el.form.id || "").toLowerCase().indexOf("facet") !== -1)
+          formId.indexOf("facet") !== -1
         ) {
-          onGridPossiblyUpdated();
-        }
-      },
-      true,
-    );
-
-    document.addEventListener(
-      "submit",
-      function (event) {
-        var form = event.target;
-        if (!form) return;
-        var formId = (form.id || "").toLowerCase();
-        var formClass = (form.className || "").toLowerCase();
-        if (
-          formId.indexOf("facet") !== -1 ||
-          formClass.indexOf("facet") !== -1 ||
-          formClass.indexOf("filter") !== -1
-        ) {
-          onGridPossiblyUpdated();
+          onCollectionGridUpdated();
         }
       },
       true,
     );
   }
+
+  /* ---------------- boot ---------------- */
 
   document.addEventListener("click", function (event) {
     var btn = event.target.closest("[data-wishpilot-add-btn]");
@@ -615,28 +546,36 @@
     event.stopPropagation();
 
     var run = function () {
-      if (btn.classList.contains("is-active")) {
-        removeFromWishlist(root, btn);
-      } else {
-        addToWishlist(root, btn);
-      }
+      if (btn.classList.contains("is-active")) removeFromWishlist(root, btn);
+      else addToWishlist(root, btn);
     };
 
-    if (settingsCache) {
-      run();
-      return;
-    }
-
-    loadSettings().finally(run);
+    if (settingsCache) run();
+    else loadSettings().finally(run);
   });
 
+  document.addEventListener("wishpilot:updated", function () {
+    // Count badge etc. — refresh server list once after mutations
+    fetchWishlistFromServer();
+  });
+
+  // Public hook for themes that dispatch custom events after AJAX
+  window.WishPilot = window.WishPilot || {};
+  window.WishPilot.reapplyWishlistState = function () {
+    reapplyAfterGridUpdate();
+  };
+  window.WishPilot.refreshWishlist = function () {
+    return fetchWishlistFromServer();
+  };
+
   function boot() {
-    wishlistIdCache = loadPersistedIds();
-    applyActiveFromCache();
+    loadPersistedIds();
+    applyWishlistState();
     loadSettings().finally(function () {
-      syncActiveButtons();
-      watchDomForRerenders();
-      watchThemeAjaxEvents();
+      fetchWishlistFromServer().finally(function () {
+        installGridWatchers();
+        applyWishlistState();
+      });
     });
   }
 
@@ -645,8 +584,4 @@
   } else {
     boot();
   }
-
-  document.addEventListener("wishpilot:updated", function () {
-    syncActiveButtons();
-  });
 })();

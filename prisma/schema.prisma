@@ -52,15 +52,16 @@ model Wishlist {
 }
 
 model ShopSettings {
-  id                 Int      @id @default(autoincrement())
-  shop               String   @unique
-  enableWishlist     Boolean  @default(true)
-  showHeartIcon      Boolean  @default(true)
-  allowGuestWishlist Boolean  @default(false)
-  buttonStyle        String   @default("heart")
-  primaryColor       String   @default("#000000")
-  buttonPosition     String   @default("product_form")
-  showWishlistCount  Boolean  @default(true)
-  updatedAt          DateTime @updatedAt
-  createdAt          DateTime @default(now())
+  id                          Int      @id @default(autoincrement())
+  shop                        String   @unique
+  enableWishlist              Boolean  @default(true)
+  showHeartIcon               Boolean  @default(true)
+  allowGuestWishlist          Boolean  @default(false)
+  requireLoginForWishlistPage Boolean  @default(false)
+  buttonStyle                 String   @default("heart")
+  primaryColor                String   @default("#000000")
+  buttonPosition              String   @default("product_form")
+  showWishlistCount           Boolean  @default(true)
+  updatedAt                   DateTime @updatedAt
+  createdAt                   DateTime @default(now())
 }

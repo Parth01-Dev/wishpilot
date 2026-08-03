@@ -11,6 +11,7 @@
   class="wishpilot-header"
   data-wishpilot-header
   data-customer-id="{% if customer %}{{ customer.id }}{% endif %}"
+  data-customer-email="{% if customer %}{{ customer.email }}{% endif %}"
   aria-label="Wishlist"
   style="--wishpilot-color: {{ icon_color }};"
   {{ block.shopify_attributes }}

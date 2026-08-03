@@ -22,6 +22,22 @@
     }
   }
 
+  function peekGuestId() {
+    try {
+      return localStorage.getItem(GUEST_KEY);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function clearGuestId() {
+    try {
+      localStorage.removeItem(GUEST_KEY);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
   function showToast(root, message) {
     var toast = qs(root, "[data-wishpilot-toast]");
     if (!toast) return;
@@ -91,6 +107,7 @@
   document.querySelectorAll("[data-wishpilot-page]").forEach(function (root) {
     var state = { page: 1, totalPages: 1, sort: "newest", search: "" };
     var customerId = root.getAttribute("data-customer-id") || "";
+    var customerEmail = root.getAttribute("data-customer-email") || "";
     var guestId = "";
     var grid = qs(root, "[data-wishpilot-grid]");
     var pagination = qs(root, "[data-wishpilot-pagination]");
@@ -98,6 +115,55 @@
     var loading = qs(root, "[data-wishpilot-loading]");
     var loginPrompt = qs(root, "[data-wishpilot-login-prompt]");
     var toolbar = qs(root, ".wishpilot-page__toolbar");
+
+    function showLoginRequired() {
+      if (loginPrompt) loginPrompt.hidden = false;
+      if (toolbar) toolbar.hidden = true;
+      if (pagination) pagination.hidden = true;
+      if (loading) loading.hidden = true;
+      if (grid) {
+        grid.innerHTML =
+          '<p class="wishpilot-page__empty">Sign in to view and manage your wishlist.</p>';
+      }
+    }
+
+    function mergeGuestWishlist() {
+      if (!customerId) return Promise.resolve();
+      var existingGuestId = peekGuestId();
+      if (!existingGuestId) return Promise.resolve();
+
+      return fetch(PROXY_BASE + "/merge", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          customerId: customerId,
+          guestId: existingGuestId,
+          customerEmail: customerEmail || "",
+        }),
+      })
+        .then(function (res) {
+          return res.json();
+        })
+        .then(function (data) {
+          if (data && data.ok) {
+            clearGuestId();
+            guestId = "";
+            if (data.merged > 0) {
+              showToast(
+                root,
+                data.toast || "Wishlist items merged into your account",
+              );
+            }
+          }
+        })
+        .catch(function () {
+          /* keep guest id; list still loads customer items */
+        });
+    }
 
     function moveToCart(wishlistId, variantId, button) {
       if (!variantId) {
@@ -291,7 +357,16 @@
     function bootAsGuestOrLogin(settings) {
       if (customerId) {
         if (loginPrompt) loginPrompt.hidden = true;
-        load();
+        if (toolbar) toolbar.hidden = false;
+        mergeGuestWishlist().finally(function () {
+          load();
+          document.dispatchEvent(new CustomEvent("wishpilot:updated"));
+        });
+        return;
+      }
+
+      if (settings && settings.requireLoginForWishlistPage) {
+        showLoginRequired();
         return;
       }
 
@@ -303,14 +378,7 @@
         return;
       }
 
-      if (loginPrompt) loginPrompt.hidden = false;
-      if (toolbar) toolbar.hidden = true;
-      if (pagination) pagination.hidden = true;
-      if (loading) loading.hidden = true;
-      if (grid) {
-        grid.innerHTML =
-          '<p class="wishpilot-page__empty">Sign in to view and manage your wishlist.</p>';
-      }
+      showLoginRequired();
     }
 
     var searchInput = qs(root, "[data-wishpilot-search]");

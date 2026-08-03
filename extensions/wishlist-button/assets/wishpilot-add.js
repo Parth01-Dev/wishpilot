@@ -1,6 +1,6 @@
 (function () {
   window.WishPilot = window.WishPilot || {};
-  window.WishPilot.version = "collection-sync-v5";
+  window.WishPilot.version = "guest-merge-v1";
 
   if (window.__wishpilotAddBound) {
     if (typeof window.WishPilot.reapplyWishlistState === "function") {
@@ -15,7 +15,8 @@
   window.__wishpilotAddBound = true;
 
   /**
-   * collection-sync-v5
+   * guest-merge-v1
+   * - Merge guest wishlist into customer account after login
    * - Install grid watchers immediately (do not wait on API)
    * - Always re-read wishlist IDs from localStorage before applying is-active
    * - Re-apply after Dawn filter/sort DOM updates
@@ -87,6 +88,70 @@
     } catch (e) {
       return null;
     }
+  }
+
+  function peekGuestId() {
+    try {
+      return localStorage.getItem(GUEST_KEY);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function clearGuestId() {
+    try {
+      localStorage.removeItem(GUEST_KEY);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function getCustomerMeta() {
+    var customerId = "";
+    var customerEmail = "";
+    document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
+      if (!customerId) customerId = root.getAttribute("data-customer-id") || "";
+      if (!customerEmail) {
+        customerEmail = root.getAttribute("data-customer-email") || "";
+      }
+    });
+    if (!customerId) {
+      var meta = document.querySelector(
+        "[data-wishpilot-page], [data-wishpilot-header]",
+      );
+      if (meta) {
+        customerId = meta.getAttribute("data-customer-id") || "";
+        customerEmail =
+          customerEmail || meta.getAttribute("data-customer-email") || "";
+      }
+    }
+    return { customerId: customerId, customerEmail: customerEmail };
+  }
+
+  /**
+   * After login, move guest wishlist rows onto the customer account.
+   */
+  function mergeGuestWishlistIfNeeded() {
+    var meta = getCustomerMeta();
+    if (!meta.customerId) return Promise.resolve(false);
+    var guestId = peekGuestId();
+    if (!guestId) return Promise.resolve(false);
+
+    return postJson("/merge", {
+      customerId: meta.customerId,
+      guestId: guestId,
+      customerEmail: meta.customerEmail || "",
+    })
+      .then(function (result) {
+        if (result.ok) {
+          clearGuestId();
+          return true;
+        }
+        return false;
+      })
+      .catch(function () {
+        return false;
+      });
   }
 
   function hydrateIdsFromStorage() {
@@ -229,24 +294,17 @@
   }
 
   function getIdentityParams() {
-    var customerId = "";
-    document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
-      if (!customerId) customerId = root.getAttribute("data-customer-id") || "";
-    });
-    if (!customerId) {
-      var meta = document.querySelector(
-        "[data-wishpilot-page], [data-wishpilot-header]",
-      );
-      if (meta) customerId = meta.getAttribute("data-customer-id") || "";
+    var meta = getCustomerMeta();
+    if (meta.customerId) {
+      return { customerId: meta.customerId, guestId: null };
     }
-    if (customerId) return { customerId: customerId, guestId: null };
     if (settingsCache && settingsCache.allowGuestWishlist) {
       var guestId = getGuestId();
       if (!guestId) return null;
       return { customerId: null, guestId: guestId };
     }
     // Guest setting unknown yet — still try guest id so boot can hydrate
-    var fallbackGuest = getGuestId();
+    var fallbackGuest = peekGuestId() || getGuestId();
     if (fallbackGuest) return { customerId: null, guestId: fallbackGuest };
     return null;
   }
@@ -673,16 +731,22 @@
     hydrateIdsFromStorage();
     return Object.keys(wishlistIds);
   };
-  window.WishPilot.version = "collection-sync-v5";
+  window.WishPilot.version = "guest-merge-v1";
 
   function boot() {
     hydrateIdsFromStorage();
     applyWishlistState();
     // CRITICAL: watchers must start even if wishlist API is slow/hanging
     installGridWatchers();
-    loadSettings().finally(function () {
-      fetchWishlistFromServer({ boot: true });
-    });
+    loadSettings()
+      .then(function () {
+        return mergeGuestWishlistIfNeeded();
+      })
+      .finally(function () {
+        fetchWishlistFromServer({ boot: true }).then(function () {
+          document.dispatchEvent(new CustomEvent("wishpilot:updated"));
+        });
+      });
   }
 
   if (document.readyState === "loading") {

@@ -48,6 +48,8 @@ export const action = async ({ request }) => {
     enableWishlist: form.get("enableWishlist") === "on",
     showHeartIcon: form.get("showHeartIcon") === "on",
     allowGuestWishlist: form.get("allowGuestWishlist") === "on",
+    requireLoginForWishlistPage:
+      form.get("requireLoginForWishlistPage") === "on",
     showWishlistCount: form.get("showWishlistCount") === "on",
     buttonStyle: String(form.get("buttonStyle") || "heart"),
     primaryColor: String(form.get("primaryColor") || "#000000"),
@@ -158,6 +160,12 @@ export default function SettingsPage() {
                   description="Let shoppers save products without signing in."
                   name="allowGuestWishlist"
                   checked={current.allowGuestWishlist}
+                />
+                <SettingToggle
+                  title="Require customer login to view Wishlist page"
+                  description="When on, guests must sign in to open the wishlist page. Guest saves are merged into their account after login."
+                  name="requireLoginForWishlistPage"
+                  checked={current.requireLoginForWishlistPage}
                 />
                 <SettingToggle
                   title="Show wishlist count"
@@ -335,6 +343,14 @@ export default function SettingsPage() {
               <div className={admin.metaItem}>
                 <dt>Guests</dt>
                 <dd>{current.allowGuestWishlist ? "Allowed" : "Off"}</dd>
+              </div>
+              <div className={admin.metaItem}>
+                <dt>Wishlist page login</dt>
+                <dd>
+                  {current.requireLoginForWishlistPage
+                    ? "Required"
+                    : "Optional"}
+                </dd>
               </div>
               <div className={admin.metaItem}>
                 <dt>Count badge</dt>

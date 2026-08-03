@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS = {
   enableWishlist: true,
   showHeartIcon: true,
   allowGuestWishlist: false,
+  requireLoginForWishlistPage: false,
   buttonStyle: "heart",
   primaryColor: "#000000",
   buttonPosition: "product_form",
@@ -69,6 +70,66 @@ export async function findExistingWishlistItem({
   return prisma.wishlist.findFirst({
     where: baseWhere,
   });
+}
+
+/**
+ * Move guest wishlist items onto a logged-in customer account.
+ * Skips products the customer already has (deletes the guest duplicate).
+ */
+export async function mergeGuestWishlistIntoCustomer({
+  shop,
+  customerId,
+  guestId,
+  customerEmail,
+}) {
+  if (!shop || !customerId || !guestId) {
+    return { merged: 0, skipped: 0, total: 0 };
+  }
+
+  const resolvedCustomerId = String(customerId);
+  const resolvedGuestId = String(guestId).trim();
+  if (!resolvedGuestId) {
+    return { merged: 0, skipped: 0, total: 0 };
+  }
+
+  const guestItems = await prisma.wishlist.findMany({
+    where: {
+      shop,
+      guestId: resolvedGuestId,
+      customerId: null,
+    },
+  });
+
+  let merged = 0;
+  let skipped = 0;
+
+  for (const item of guestItems) {
+    const existing = await findExistingWishlistItem({
+      shop,
+      customerId: resolvedCustomerId,
+      guestId: null,
+      productId: item.productId,
+      variantId: item.variantId,
+    });
+
+    if (existing) {
+      await prisma.wishlist.delete({ where: { id: item.id } });
+      skipped += 1;
+      continue;
+    }
+
+    await prisma.wishlist.update({
+      where: { id: item.id },
+      data: {
+        customerId: resolvedCustomerId,
+        guestId: null,
+        customerEmail: customerEmail || item.customerEmail || null,
+      },
+    });
+    merged += 1;
+  }
+
+  return { merged, skipped, total: guestItems.length };
 }
 
 /**

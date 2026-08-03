@@ -1,10 +1,10 @@
 {% comment %}
-  WishPilot — App embed (required on collection pages for pasteable card buttons).
-  Theme editor → App embeds → enable WishPilot.
+  WishPilot — App embed (recommended on every theme).
+  Also loads storefront JS/CSS from the app host so wishlist works on collections.
 {% endcomment %}
 
-{{ 'wishpilot.css' | asset_url | stylesheet_tag }}
-<script src="{{ 'wishpilot-add.js' | asset_url }}" defer></script>
+<link rel="stylesheet" href="https://victorious-wishpilot-production.up.railway.app/wishpilot/add.css" media="all">
+<script src="https://victorious-wishpilot-production.up.railway.app/wishpilot/add.js" defer></script>
 
 {% schema %}
 {
@@ -13,7 +13,7 @@
   "settings": [
     {
       "type": "paragraph",
-      "content": "Required for wishlist hearts on collection cards. Enable this embed, then paste the Liquid snippet from WishPilot → Settings into your product card (e.g. card-product.liquid)."
+      "content": "Loads wishlist hearts CSS/JS on every page. Enable this embed, and for collection cards also paste the snippet from WishPilot → Settings."
     }
   ]
 }

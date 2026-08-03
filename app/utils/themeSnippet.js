@@ -1,8 +1,10 @@
 /**
  * Liquid merchants paste into card-product.liquid (or equivalent).
- * Loads WishPilot CSS/JS via app proxy so collection filters keep working
- * even when the theme app embed is off.
+ * Loads WishPilot CSS/JS from the app (Railway) so collection filters keep
+ * working even when the theme app embed is off.
  */
+const APP_ORIGIN = "https://victorious-wishpilot-production.up.railway.app";
+
 export const WISHLIST_CARD_SNIPPET = `{% comment %}
   WishPilot — Add to Wishlist button
   Paste into snippets/card-product.liquid (or your theme's product card).
@@ -10,13 +12,13 @@ export const WISHLIST_CARD_SNIPPET = `{% comment %}
 {% endcomment %}
 {% unless wishpilot_assets_included %}
   {% assign wishpilot_assets_included = true %}
-  <link rel="stylesheet" href="/apps/wish-pilot/sf/add.css" media="all">
+  <link rel="stylesheet" href="${APP_ORIGIN}/wishpilot/add.css" media="all">
   <script>
     (function () {
       if (window.__wishpilotScriptRequested) return;
       window.__wishpilotScriptRequested = true;
       var s = document.createElement("script");
-      s.src = "/apps/wish-pilot/sf/add.js";
+      s.src = "${APP_ORIGIN}/wishpilot/add.js";
       s.defer = true;
       document.head.appendChild(s);
     })();

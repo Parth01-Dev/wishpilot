@@ -13,11 +13,12 @@ const ASSETS = {
 };
 
 /**
- * App-proxy storefront assets (public — no Shopify auth required).
- * Script/link tags on the shop hit /apps/wish-pilot/sf/* and are proxied here.
+ * Public storefront assets (no auth).
+ * Loaded by the collection card Liquid snippet and/or app embed.
  *
- * Previously returned 401 from authenticate.public.appProxy, which blocked
- * window.WishPilot from ever loading on collection pages.
+ * Direct:   /wishpilot/add.js
+ *           /wishpilot/add.css
+ * App proxy (also works): /apps/wish-pilot/sf/add.js → see api.wishlist.sf.$asset
  */
 export const loader = async ({ params }) => {
   const meta = ASSETS[params.asset];

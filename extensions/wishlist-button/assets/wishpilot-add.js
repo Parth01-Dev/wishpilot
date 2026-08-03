@@ -2,20 +2,25 @@
   if (window.__wishpilotAddBound) return;
   window.__wishpilotAddBound = true;
 
-  // WishPilot collection sync v3 — re-applies liked state after Dawn filter/sort AJAX
+  /**
+   * WishPilot collection-sync-v4
+   *
+   * Dawn/OS2.0 filter & sort replace #ProductGridContainer via Section Rendering /
+   * AJAX. New heart buttons mount without is-active. We keep wishlist product IDs
+   * in memory (+ localStorage) and re-apply is-active after every grid DOM update.
+   * No API call on filter/sort — only on boot / add / remove.
+   */
   var PROXY_BASE = "/apps/wish-pilot";
   var GUEST_KEY = "wishpilot_guest_id";
   var CACHE_KEY = "wishpilot_wishlist_ids";
   var POP_MS = 380;
-  var RECONCILE_MS = 400;
+  var RECONCILE_MS = 350;
 
   var settingsCache = null;
-  var wishlistIds = Object.create(null);
+  var wishlistIds = Object.create(null); // normalized product id -> true
   var syncInFlight = false;
   var syncQueued = false;
-  var applyTimer = null;
-  var serverRefreshTimer = null;
-  var lastGridSignature = "";
+  var gridApplyTimer = null;
   var watchersReady = false;
 
   function normalizeProductId(id) {
@@ -117,10 +122,6 @@
     return !!wishlistIds[normalizeProductId(productId)];
   }
 
-  function wishlistCount() {
-    return Object.keys(wishlistIds).length;
-  }
-
   function applyAdminColor(color) {
     if (!color) return;
     document.documentElement.style.setProperty("--wishpilot-color", color);
@@ -165,20 +166,9 @@
     }
   }
 
-  function getGridSignature() {
-    var parts = [];
-    document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
-      var id = root.getAttribute("data-product-id") || "";
-      var btn = root.querySelector("[data-wishpilot-add-btn]");
-      var active = btn && btn.classList.contains("is-active") ? "1" : "0";
-      parts.push(id + ":" + active);
-    });
-    return parts.join("|");
-  }
-
   /**
-   * Paint liked/unliked from cache onto whatever buttons are in the DOM now.
-   * Called after Dawn filter/sort replaces #ProductGridContainer.
+   * Re-apply is-active from in-memory wishlist IDs to every heart in the DOM.
+   * Safe to call many times; does not hit the network.
    */
   function applyWishlistState() {
     document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
@@ -186,50 +176,42 @@
       var btn = root.querySelector("[data-wishpilot-add-btn]");
       if (!btn) return;
       setActive(btn, isWishlisted(productId), false);
+      root.setAttribute("data-wishpilot-synced", "1");
     });
     if (settingsCache && settingsCache.primaryColor) {
       applyAdminColor(settingsCache.primaryColor);
     }
-    lastGridSignature = getGridSignature();
-  }
-
-  function reapplyAfterGridUpdate() {
-    applyWishlistState();
-    if (window.requestAnimationFrame) {
-      requestAnimationFrame(function () {
-        applyWishlistState();
-        requestAnimationFrame(applyWishlistState);
-      });
-    }
-    clearTimeout(applyTimer);
-    applyTimer = setTimeout(applyWishlistState, 0);
-    setTimeout(applyWishlistState, 80);
-    setTimeout(applyWishlistState, 250);
-    setTimeout(applyWishlistState, 600);
-    setTimeout(applyWishlistState, 1200);
   }
 
   /**
-   * If any wishlisted product is missing is-active, fix it.
-   * Cheap safety net for themes that re-render after our first apply.
+   * Called whenever the collection grid may have been replaced (filter/sort/pagination).
+   * Apply immediately (same tick as DOM mutation), then once more shortly after paint.
    */
+  function onCollectionGridUpdated() {
+    applyWishlistState();
+    clearTimeout(gridApplyTimer);
+    gridApplyTimer = setTimeout(applyWishlistState, 50);
+    if (window.requestAnimationFrame) {
+      requestAnimationFrame(applyWishlistState);
+    }
+  }
+
+  /** Fix any wishlisted button that lost is-active after a late theme paint. */
   function reconcileLikedIcons() {
-    if (!wishlistCount()) return;
-    var fixed = false;
-    document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
-      var productId = root.getAttribute("data-product-id");
+    var roots = document.querySelectorAll(
+      "[data-wishpilot-add]:not([data-wishpilot-synced]), [data-wishpilot-add]",
+    );
+    var needs = false;
+    roots.forEach(function (root) {
       var btn = root.querySelector("[data-wishpilot-add-btn]");
       if (!btn) return;
-      var should = isWishlisted(productId);
+      var should = isWishlisted(root.getAttribute("data-product-id"));
       var has = btn.classList.contains("is-active");
-      if (should !== has) {
-        setActive(btn, should, false);
-        fixed = true;
+      if (should !== has || !root.getAttribute("data-wishpilot-synced")) {
+        needs = true;
       }
     });
-    if (fixed && settingsCache && settingsCache.primaryColor) {
-      applyAdminColor(settingsCache.primaryColor);
-    }
+    if (needs) applyWishlistState();
   }
 
   function getIdentityParams() {
@@ -252,7 +234,13 @@
     return null;
   }
 
-  function fetchWishlistFromServer() {
+  /**
+   * Load wishlist IDs from the server (boot / after add-remove only).
+   * Never called on filter/sort. Never clears local cache on empty/error responses
+   * unless this is an explicit boot sync that succeeded.
+   */
+  function fetchWishlistFromServer(options) {
+    var isBoot = !!(options && options.boot);
     var identity = getIdentityParams();
     if (!identity) {
       applyWishlistState();
@@ -276,13 +264,17 @@
       .then(parseJsonResponse)
       .then(function (result) {
         if (!result.ok || !result.data || !Array.isArray(result.data.items)) {
+          applyWishlistState();
           return;
         }
         if (result.data.settings) {
           settingsCache = result.data.settings;
           applyAdminColor(settingsCache.primaryColor);
         }
-        setWishlistIdsFromServer(result.data.items);
+        // Only replace cache when we have items, or on boot (authoritative empty list).
+        if (result.data.items.length > 0 || isBoot) {
+          setWishlistIdsFromServer(result.data.items);
+        }
         applyWishlistState();
       })
       .catch(function () {
@@ -292,22 +284,9 @@
         syncInFlight = false;
         if (syncQueued) {
           syncQueued = false;
-          fetchWishlistFromServer();
+          fetchWishlistFromServer(options);
         }
       });
-  }
-
-  /** One debounced server refresh after grid AJAX — keeps cache warm, avoids spam. */
-  function scheduleServerRefresh() {
-    clearTimeout(serverRefreshTimer);
-    serverRefreshTimer = setTimeout(function () {
-      fetchWishlistFromServer();
-    }, 500);
-  }
-
-  function onCollectionGridUpdated() {
-    reapplyAfterGridUpdate();
-    scheduleServerRefresh();
   }
 
   function buildPayload(root) {
@@ -374,6 +353,7 @@
         }
         markWishlisted(payload.productId, true);
         setActive(btn, true, true);
+        root.setAttribute("data-wishpilot-synced", "1");
         showToast(
           root,
           (result.data && result.data.toast) ||
@@ -416,6 +396,7 @@
         }
         markWishlisted(payload.productId, false);
         setActive(btn, false, false);
+        root.setAttribute("data-wishpilot-synced", "1");
         showToast(
           root,
           (result.data && result.data.toast) || "Removed from Wishlist",
@@ -430,40 +411,40 @@
       });
   }
 
-  function nodeContainsWishpilot(node) {
+  function findProductGridRoot() {
+    return (
+      document.getElementById("ProductGridContainer") ||
+      document.querySelector(".product-grid-container") ||
+      document.getElementById("main-collection-product-grid") ||
+      document.querySelector("#product-grid") ||
+      document.querySelector(".collection .product-grid") ||
+      null
+    );
+  }
+
+  function nodeHasNewWishpilotButtons(node) {
     if (!node) return false;
     if (node.nodeType === 1) {
       if (node.matches && node.matches("[data-wishpilot-add]")) return true;
-      if (node.querySelector && node.querySelector("[data-wishpilot-add]")) {
+      if (node.id === "ProductGridContainer") return true;
+      if (
+        node.classList &&
+        (node.classList.contains("product-grid-container") ||
+          node.classList.contains("product-grid"))
+      ) {
         return true;
       }
-      // Dawn replaces whole #ProductGridContainer
-      if (
-        node.id === "ProductGridContainer" ||
-        (node.classList &&
-          (node.classList.contains("product-grid-container") ||
-            node.classList.contains("product-grid") ||
-            node.classList.contains("collection")))
-      ) {
+      if (node.querySelector && node.querySelector("[data-wishpilot-add]")) {
         return true;
       }
       return false;
     }
     if (node.nodeType === 11 && node.querySelector) {
-      return !!node.querySelector("[data-wishpilot-add], #ProductGridContainer");
+      return !!node.querySelector(
+        "[data-wishpilot-add], #ProductGridContainer, .product-grid",
+      );
     }
     return false;
-  }
-
-  function findProductGridRoot() {
-    return (
-      document.getElementById("ProductGridContainer") ||
-      document.querySelector(".product-grid-container") ||
-      document.querySelector("#main-collection-product-grid") ||
-      document.querySelector(".collection .product-grid") ||
-      document.querySelector("[data-product-grid]") ||
-      null
-    );
   }
 
   function isProductGridAjaxUrl(url) {
@@ -484,24 +465,23 @@
     if (watchersReady) return;
     watchersReady = true;
 
-    // A) Observe Dawn product grid container when present
     function observeGrid(el) {
       if (!el || !window.MutationObserver || el.__wishpilotObserved) return;
       el.__wishpilotObserved = true;
       new MutationObserver(function () {
+        // Dawn has just injected new product card HTML — apply in the same turn.
         onCollectionGridUpdated();
       }).observe(el, { childList: true, subtree: true });
     }
 
     observeGrid(findProductGridRoot());
 
-    // Re-attach if theme swaps the container node itself
     if (window.MutationObserver) {
       new MutationObserver(function (mutations) {
         for (var i = 0; i < mutations.length; i++) {
           var added = mutations[i].addedNodes;
           for (var j = 0; j < added.length; j++) {
-            if (nodeContainsWishpilot(added[j])) {
+            if (nodeHasNewWishpilotButtons(added[j])) {
               observeGrid(findProductGridRoot());
               onCollectionGridUpdated();
               return;
@@ -511,7 +491,6 @@
       }).observe(document.documentElement, { childList: true, subtree: true });
     }
 
-    // B) Theme events
     [
       "shopify:section:load",
       "shopify:section:reorder",
@@ -540,7 +519,6 @@
       return result;
     };
 
-    // C) Patch fetch (Dawn Section Rendering)
     if (typeof window.fetch === "function" && !window.__wishpilotFetchPatched) {
       window.__wishpilotFetchPatched = true;
       var originalFetch = window.fetch;
@@ -554,9 +532,13 @@
               : "";
         var promise = originalFetch.apply(this, arguments);
         if (isProductGridAjaxUrl(url)) {
+          // Fetch resolves before Dawn writes HTML — MutationObserver handles the
+          // real DOM update; this is a backup for late paints.
           promise.then(
             function () {
-              onCollectionGridUpdated();
+              setTimeout(onCollectionGridUpdated, 0);
+              setTimeout(onCollectionGridUpdated, 100);
+              setTimeout(onCollectionGridUpdated, 300);
             },
             function () {},
           );
@@ -565,7 +547,6 @@
       };
     }
 
-    // D) Sort / filter change
     document.addEventListener(
       "change",
       function (event) {
@@ -588,10 +569,10 @@
       true,
     );
 
-    // E) Continuous reconcile — fixes late Dawn paints without extra API spam
     setInterval(reconcileLikedIcons, RECONCILE_MS);
   }
 
+  // Single delegated click listener — survives grid re-renders
   document.addEventListener("click", function (event) {
     var btn = event.target.closest("[data-wishpilot-add-btn]");
     if (!btn) return;
@@ -609,23 +590,21 @@
   });
 
   document.addEventListener("wishpilot:updated", function () {
-    fetchWishlistFromServer();
+    fetchWishlistFromServer({ boot: false });
   });
 
   window.WishPilot = window.WishPilot || {};
-  window.WishPilot.version = "collection-sync-v3";
-  window.WishPilot.reapplyWishlistState = function () {
-    reapplyAfterGridUpdate();
-  };
+  window.WishPilot.version = "collection-sync-v4";
+  window.WishPilot.reapplyWishlistState = onCollectionGridUpdated;
   window.WishPilot.refreshWishlist = function () {
-    return fetchWishlistFromServer();
+    return fetchWishlistFromServer({ boot: true });
   };
 
   function boot() {
     loadPersistedIds();
     applyWishlistState();
     loadSettings().finally(function () {
-      fetchWishlistFromServer().finally(function () {
+      fetchWishlistFromServer({ boot: true }).finally(function () {
         installGridWatchers();
         applyWishlistState();
       });

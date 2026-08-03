@@ -152,6 +152,12 @@
           if (data && data.ok) {
             clearGuestId();
             guestId = "";
+            try {
+              // Force hearts/count to rehydrate from the customer list next
+              localStorage.removeItem("wishpilot_wishlist_ids");
+            } catch (e) {
+              /* ignore */
+            }
             if (data.merged > 0) {
               showToast(
                 root,

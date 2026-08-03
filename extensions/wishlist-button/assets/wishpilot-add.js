@@ -1,6 +1,6 @@
 (function () {
   window.WishPilot = window.WishPilot || {};
-  window.WishPilot.version = "guest-merge-v2";
+  window.WishPilot.version = "guest-merge-v3";
 
   if (window.__wishpilotAddBound) {
     if (typeof window.WishPilot.reapplyWishlistState === "function") {
@@ -15,9 +15,9 @@
   window.__wishpilotAddBound = true;
 
   /**
-   * guest-merge-v2
+   * guest-merge-v3
    * - Guest add works when Allow guest is ON (do not block while settings load)
-   * - Merge guest wishlist into customer account after login
+   * - Merge guest wishlist into customer account after login (deduped)
    * - Install grid watchers immediately (do not wait on API)
    * - Always re-read wishlist IDs from localStorage before applying is-active
    * - Re-apply after Dawn filter/sort DOM updates
@@ -146,6 +146,11 @@
       .then(function (result) {
         if (result.ok) {
           clearGuestId();
+          try {
+            localStorage.removeItem(CACHE_KEY);
+          } catch (e) {
+            /* ignore */
+          }
           return true;
         }
         return false;
@@ -732,7 +737,7 @@
     hydrateIdsFromStorage();
     return Object.keys(wishlistIds);
   };
-  window.WishPilot.version = "guest-merge-v2";
+  window.WishPilot.version = "guest-merge-v3";
 
   function boot() {
     hydrateIdsFromStorage();

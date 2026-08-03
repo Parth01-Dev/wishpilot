@@ -56,6 +56,27 @@ export async function updateShopSettings(shop, data) {
 }
 
 /**
+ * Normalize Shopify customer IDs to numeric + GID forms for reliable lookups.
+ */
+export function customerIdVariants(customerId) {
+  const raw = String(customerId || "").trim();
+  if (!raw) return [];
+  const numeric = raw.replace("gid://shopify/Customer/", "");
+  const gid = raw.startsWith("gid://")
+    ? raw
+    : `gid://shopify/Customer/${raw}`;
+  return [...new Set([raw, numeric, gid].filter(Boolean))];
+}
+
+/**
+ * Prefer a stable numeric customer id when writing wishlist rows.
+ */
+function canonicalCustomerId(customerId) {
+  const variants = customerIdVariants(customerId);
+  return variants.find((id) => !String(id).startsWith("gid://")) || variants[0] || null;
+}
+
+/**
  * Prevent duplicate wishlist entries for the same shop/customer|guest/product/variant.
  * Falls back to product-level match so collection cards stay in sync across variants.
  */
@@ -70,7 +91,7 @@ export async function findExistingWishlistItem({
     shop,
     productId,
     ...(customerId
-      ? { customerId }
+      ? { customerId: { in: customerIdVariants(customerId) } }
       : guestId
         ? { guestId, customerId: null }
         : { customerId: null, guestId: null }),
@@ -102,9 +123,9 @@ export async function mergeGuestWishlistIntoCustomer({
     return { merged: 0, skipped: 0, total: 0 };
   }
 
-  const resolvedCustomerId = String(customerId);
+  const resolvedCustomerId = canonicalCustomerId(customerId);
   const resolvedGuestId = String(guestId).trim();
-  if (!resolvedGuestId) {
+  if (!resolvedCustomerId || !resolvedGuestId) {
     return { merged: 0, skipped: 0, total: 0 };
   }
 
@@ -160,7 +181,7 @@ export async function addWishlistItem(data) {
   const item = await prisma.wishlist.create({
     data: {
       shop: data.shop,
-      customerId: data.customerId ?? null,
+      customerId: data.customerId ? canonicalCustomerId(data.customerId) : null,
       guestId: data.customerId ? null : data.guestId ?? null,
       customerEmail: data.customerEmail ?? null,
       productId: data.productId,
@@ -401,15 +422,8 @@ export async function listWishlistCustomers(
  * Accepts numeric IDs or full Shopify Customer GIDs.
  */
 export async function getCustomerWishlist(shop, customerId) {
-  const raw = String(customerId || "").trim();
-  if (!raw) return [];
-
-  const numeric = raw.replace("gid://shopify/Customer/", "");
-  const gid = raw.startsWith("gid://")
-    ? raw
-    : `gid://shopify/Customer/${raw}`;
-
-  const ids = [...new Set([raw, numeric, gid].filter(Boolean))];
+  const ids = customerIdVariants(customerId);
+  if (!ids.length) return [];
 
   return prisma.wishlist.findMany({
     where: {
@@ -425,15 +439,8 @@ export async function getCustomerWishlist(shop, customerId) {
  * Accepts numeric IDs or full Shopify Customer GIDs.
  */
 export async function removeCustomerWishlist(shop, customerId) {
-  const raw = String(customerId || "").trim();
-  if (!raw) return { count: 0 };
-
-  const numeric = raw.replace("gid://shopify/Customer/", "");
-  const gid = raw.startsWith("gid://")
-    ? raw
-    : `gid://shopify/Customer/${raw}`;
-
-  const ids = [...new Set([raw, numeric, gid].filter(Boolean))];
+  const ids = customerIdVariants(customerId);
+  if (!ids.length) return { count: 0 };
 
   return prisma.wishlist.deleteMany({
     where: {
@@ -603,14 +610,18 @@ export async function getStorefrontWishlist(
   const where = {
     shop,
     ...(customerId
-      ? { customerId }
+      ? { customerId: { in: customerIdVariants(customerId) } }
       : { guestId, customerId: null }),
   };
 
   if (search.trim()) {
-    where.OR = [
-      { productTitle: { contains: search.trim(), mode: "insensitive" } },
-      { vendor: { contains: search.trim(), mode: "insensitive" } },
+    where.AND = [
+      {
+        OR: [
+          { productTitle: { contains: search.trim(), mode: "insensitive" } },
+          { vendor: { contains: search.trim(), mode: "insensitive" } },
+        ],
+      },
     ];
   }
 

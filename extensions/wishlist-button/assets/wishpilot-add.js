@@ -1,6 +1,6 @@
 (function () {
   window.WishPilot = window.WishPilot || {};
-  window.WishPilot.version = "guest-merge-v1";
+  window.WishPilot.version = "guest-merge-v2";
 
   if (window.__wishpilotAddBound) {
     if (typeof window.WishPilot.reapplyWishlistState === "function") {
@@ -15,7 +15,8 @@
   window.__wishpilotAddBound = true;
 
   /**
-   * guest-merge-v1
+   * guest-merge-v2
+   * - Guest add works when Allow guest is ON (do not block while settings load)
    * - Merge guest wishlist into customer account after login
    * - Install grid watchers immediately (do not wait on API)
    * - Always re-read wishlist IDs from localStorage before applying is-active
@@ -298,19 +299,14 @@
     if (meta.customerId) {
       return { customerId: meta.customerId, guestId: null };
     }
-    // Guests only when explicitly allowed
-    if (settingsCache && settingsCache.allowGuestWishlist === true) {
-      var guestId = getGuestId();
-      if (!guestId) return null;
-      return { customerId: null, guestId: guestId };
-    }
+    // Block guests only when settings explicitly disallow them
     if (settingsCache && settingsCache.allowGuestWishlist === false) {
       return null;
     }
-    // Settings not loaded yet — hydrate from existing guest id only
-    var existingGuest = peekGuestId();
-    if (existingGuest) return { customerId: null, guestId: existingGuest };
-    return null;
+    // Allowed, or settings not loaded yet (API enforces LOGIN_REQUIRED)
+    var guestId = getGuestId();
+    if (!guestId) return null;
+    return { customerId: null, guestId: guestId };
   }
 
   function fetchWithTimeout(url, options, ms) {
@@ -405,8 +401,9 @@
   function resolveIdentity(root) {
     var customerId = root.getAttribute("data-customer-id") || "";
     if (customerId) return { customerId: customerId, guestId: "" };
-    // Both off (or guests disabled) → require login to add
-    if (!settingsCache || settingsCache.allowGuestWishlist !== true) {
+    // Only require login when merchant explicitly disabled guest wishlist.
+    // If settings are still loading, allow guest and let the API enforce.
+    if (settingsCache && settingsCache.allowGuestWishlist === false) {
       return { customerId: "", guestId: "", loginRequired: true };
     }
     var guestId = getGuestId();
@@ -718,8 +715,8 @@
       if (btn.classList.contains("is-active")) removeFromWishlist(root, btn);
       else addToWishlist(root, btn);
     };
-    if (settingsCache) run();
-    else loadSettings().finally(run);
+    // Always refresh settings so Allow guest / login toggles apply immediately
+    loadSettings().finally(run);
   });
 
   document.addEventListener("wishpilot:updated", function () {
@@ -735,7 +732,7 @@
     hydrateIdsFromStorage();
     return Object.keys(wishlistIds);
   };
-  window.WishPilot.version = "guest-merge-v1";
+  window.WishPilot.version = "guest-merge-v2";
 
   function boot() {
     hydrateIdsFromStorage();

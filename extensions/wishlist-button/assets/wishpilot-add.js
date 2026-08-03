@@ -1,7 +1,6 @@
 (function () {
-  // Expose immediately so console checks work even if init already ran.
   window.WishPilot = window.WishPilot || {};
-  window.WishPilot.version = "collection-sync-v4";
+  window.WishPilot.version = "collection-sync-v5";
 
   if (window.__wishpilotAddBound) {
     if (typeof window.WishPilot.reapplyWishlistState === "function") {
@@ -16,29 +15,29 @@
   window.__wishpilotAddBound = true;
 
   /**
-   * WishPilot collection-sync-v4
-   *
-   * Dawn/OS2.0 filter & sort replace #ProductGridContainer via Section Rendering /
-   * AJAX. New heart buttons mount without is-active. We keep wishlist product IDs
-   * in memory (+ localStorage) and re-apply is-active after every grid DOM update.
-   * No API call on filter/sort — only on boot / add / remove.
+   * collection-sync-v5
+   * - Install grid watchers immediately (do not wait on API)
+   * - Always re-read wishlist IDs from localStorage before applying is-active
+   * - Re-apply after Dawn filter/sort DOM updates
    */
   var PROXY_BASE = "/apps/wish-pilot";
   var GUEST_KEY = "wishpilot_guest_id";
   var CACHE_KEY = "wishpilot_wishlist_ids";
   var POP_MS = 380;
-  var RECONCILE_MS = 350;
 
   var settingsCache = null;
-  var wishlistIds = Object.create(null); // normalized product id -> true
+  var wishlistIds = Object.create(null);
   var syncInFlight = false;
   var syncQueued = false;
-  var gridApplyTimer = null;
+  var applyTimer = null;
   var watchersReady = false;
 
   function normalizeProductId(id) {
     if (!id) return "";
-    return String(id).replace(/^gid:\/\/shopify\/Product\//, "").trim();
+    return String(id)
+      .replace(/^gid:\/\/shopify\/Product\//, "")
+      .replace(/[^0-9]/g, "")
+      .trim();
   }
 
   function parseJsonResponse(res) {
@@ -90,13 +89,12 @@
     }
   }
 
-  function loadPersistedIds() {
+  function hydrateIdsFromStorage() {
     try {
       var raw = localStorage.getItem(CACHE_KEY);
       if (!raw) return;
       var parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) return;
-      wishlistIds = Object.create(null);
       parsed.forEach(function (id) {
         var n = normalizeProductId(id);
         if (n) wishlistIds[n] = true;
@@ -179,52 +177,55 @@
     }
   }
 
-  /**
-   * Re-apply is-active from in-memory wishlist IDs to every heart in the DOM.
-   * Safe to call many times; does not hit the network.
-   */
   function applyWishlistState() {
-    document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
+    // Always merge latest localStorage (survives late paints / new script loads)
+    hydrateIdsFromStorage();
+
+    var buttons = document.querySelectorAll("[data-wishpilot-add]");
+    for (var i = 0; i < buttons.length; i++) {
+      var root = buttons[i];
       var productId = root.getAttribute("data-product-id");
-      var btn = root.querySelector("[data-wishpilot-add-btn]");
-      if (!btn) return;
+      var btn =
+        root.querySelector("[data-wishpilot-add-btn]") ||
+        root.querySelector("button");
+      if (!btn) continue;
       setActive(btn, isWishlisted(productId), false);
       root.setAttribute("data-wishpilot-synced", "1");
-    });
+    }
+
     if (settingsCache && settingsCache.primaryColor) {
       applyAdminColor(settingsCache.primaryColor);
     }
   }
 
-  /**
-   * Called whenever the collection grid may have been replaced (filter/sort/pagination).
-   * Apply immediately (same tick as DOM mutation), then once more shortly after paint.
-   */
   function onCollectionGridUpdated() {
     applyWishlistState();
-    clearTimeout(gridApplyTimer);
-    gridApplyTimer = setTimeout(applyWishlistState, 50);
+    clearTimeout(applyTimer);
+    applyTimer = setTimeout(applyWishlistState, 30);
+    setTimeout(applyWishlistState, 120);
+    setTimeout(applyWishlistState, 350);
+    setTimeout(applyWishlistState, 800);
     if (window.requestAnimationFrame) {
-      requestAnimationFrame(applyWishlistState);
+      requestAnimationFrame(function () {
+        applyWishlistState();
+        requestAnimationFrame(applyWishlistState);
+      });
     }
   }
 
-  /** Fix any wishlisted button that lost is-active after a late theme paint. */
   function reconcileLikedIcons() {
-    var roots = document.querySelectorAll(
-      "[data-wishpilot-add]:not([data-wishpilot-synced]), [data-wishpilot-add]",
-    );
-    var needs = false;
-    roots.forEach(function (root) {
-      var btn = root.querySelector("[data-wishpilot-add-btn]");
+    hydrateIdsFromStorage();
+    var mismatched = false;
+    document.querySelectorAll("[data-wishpilot-add]").forEach(function (root) {
+      var btn =
+        root.querySelector("[data-wishpilot-add-btn]") ||
+        root.querySelector("button");
       if (!btn) return;
       var should = isWishlisted(root.getAttribute("data-product-id"));
       var has = btn.classList.contains("is-active");
-      if (should !== has || !root.getAttribute("data-wishpilot-synced")) {
-        needs = true;
-      }
+      if (should !== has) mismatched = true;
     });
-    if (needs) applyWishlistState();
+    if (mismatched) applyWishlistState();
   }
 
   function getIdentityParams() {
@@ -244,14 +245,25 @@
       if (!guestId) return null;
       return { customerId: null, guestId: guestId };
     }
+    // Guest setting unknown yet — still try guest id so boot can hydrate
+    var fallbackGuest = getGuestId();
+    if (fallbackGuest) return { customerId: null, guestId: fallbackGuest };
     return null;
   }
 
-  /**
-   * Load wishlist IDs from the server (boot / after add-remove only).
-   * Never called on filter/sort. Never clears local cache on empty/error responses
-   * unless this is an explicit boot sync that succeeded.
-   */
+  function fetchWithTimeout(url, options, ms) {
+    var controller =
+      typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer = setTimeout(function () {
+      if (controller) controller.abort();
+    }, ms || 8000);
+    var opts = options || {};
+    if (controller) opts.signal = controller.signal;
+    return fetch(url, opts).finally(function () {
+      clearTimeout(timer);
+    });
+  }
+
   function fetchWishlistFromServer(options) {
     var isBoot = !!(options && options.boot);
     var identity = getIdentityParams();
@@ -270,10 +282,14 @@
     if (identity.customerId) params.set("customerId", identity.customerId);
     else params.set("guestId", identity.guestId);
 
-    return fetch(PROXY_BASE + "?" + params.toString(), {
-      headers: { Accept: "application/json" },
-      credentials: "same-origin",
-    })
+    return fetchWithTimeout(
+      PROXY_BASE + "?" + params.toString(),
+      {
+        headers: { Accept: "application/json" },
+        credentials: "same-origin",
+      },
+      8000,
+    )
       .then(parseJsonResponse)
       .then(function (result) {
         if (!result.ok || !result.data || !Array.isArray(result.data.items)) {
@@ -284,7 +300,6 @@
           settingsCache = result.data.settings;
           applyAdminColor(settingsCache.primaryColor);
         }
-        // Only replace cache when we have items, or on boot (authoritative empty list).
         if (result.data.items.length > 0 || isBoot) {
           setWishlistIdsFromServer(result.data.items);
         }
@@ -328,9 +343,10 @@
   function resolveIdentity(root) {
     var customerId = root.getAttribute("data-customer-id") || "";
     if (customerId) return { customerId: customerId, guestId: "" };
-    if (!(settingsCache && settingsCache.allowGuestWishlist)) {
+    if (settingsCache && settingsCache.allowGuestWishlist === false) {
       return { customerId: "", guestId: "", loginRequired: true };
     }
+    // Allow guest if setting unknown or true (collection paste often boots before settings load)
     var guestId = getGuestId();
     if (!guestId) return { customerId: "", guestId: "", loginRequired: true };
     return { customerId: "", guestId: guestId };
@@ -347,6 +363,10 @@
     payload.guestId = identity.guestId;
     btn.disabled = true;
 
+    // Optimistic UI + cache so filter/sort keep is-active even if API is slow
+    markWishlisted(payload.productId, true);
+    setActive(btn, true, true);
+
     postJson("/add", payload)
       .then(function (result) {
         if (
@@ -354,10 +374,14 @@
           result.data &&
           result.data.code === "LOGIN_REQUIRED"
         ) {
+          markWishlisted(payload.productId, false);
+          setActive(btn, false, false);
           showToast(root, "Please sign in to save to your wishlist");
           return;
         }
         if (!result.ok) {
+          markWishlisted(payload.productId, false);
+          setActive(btn, false, false);
           showToast(
             root,
             (result.data && result.data.error) || "Could not update wishlist",
@@ -365,7 +389,7 @@
           return;
         }
         markWishlisted(payload.productId, true);
-        setActive(btn, true, true);
+        setActive(btn, true, false);
         root.setAttribute("data-wishpilot-synced", "1");
         showToast(
           root,
@@ -377,6 +401,8 @@
         document.dispatchEvent(new CustomEvent("wishpilot:updated"));
       })
       .catch(function () {
+        markWishlisted(payload.productId, false);
+        setActive(btn, false, false);
         showToast(root, "Network error");
       })
       .finally(function () {
@@ -393,6 +419,9 @@
     var payload = buildPayload(root);
     btn.disabled = true;
 
+    markWishlisted(payload.productId, false);
+    setActive(btn, false, false);
+
     postJson("/remove", {
       productId: payload.productId,
       variantId: payload.variantId,
@@ -401,22 +430,23 @@
     })
       .then(function (result) {
         if (!result.ok) {
+          markWishlisted(payload.productId, true);
+          setActive(btn, true, false);
           showToast(
             root,
             (result.data && result.data.error) || "Could not update wishlist",
           );
           return;
         }
-        markWishlisted(payload.productId, false);
-        setActive(btn, false, false);
-        root.setAttribute("data-wishpilot-synced", "1");
+        document.dispatchEvent(new CustomEvent("wishpilot:updated"));
         showToast(
           root,
           (result.data && result.data.toast) || "Removed from Wishlist",
         );
-        document.dispatchEvent(new CustomEvent("wishpilot:updated"));
       })
       .catch(function () {
+        markWishlisted(payload.productId, true);
+        setActive(btn, true, false);
         showToast(root, "Network error");
       })
       .finally(function () {
@@ -429,41 +459,50 @@
       document.getElementById("ProductGridContainer") ||
       document.querySelector(".product-grid-container") ||
       document.getElementById("main-collection-product-grid") ||
+      document.getElementById("product-grid") ||
       document.querySelector("#product-grid") ||
       document.querySelector(".collection .product-grid") ||
+      document.querySelector("ul#product-grid") ||
+      document.querySelector("[data-product-grid]") ||
       null
     );
   }
 
-  function nodeHasNewWishpilotButtons(node) {
-    if (!node) return false;
-    if (node.nodeType === 1) {
-      if (node.matches && node.matches("[data-wishpilot-add]")) return true;
-      if (node.id === "ProductGridContainer") return true;
-      if (
-        node.classList &&
-        (node.classList.contains("product-grid-container") ||
-          node.classList.contains("product-grid"))
-      ) {
-        return true;
-      }
-      if (node.querySelector && node.querySelector("[data-wishpilot-add]")) {
-        return true;
-      }
-      return false;
-    }
-    if (node.nodeType === 11 && node.querySelector) {
-      return !!node.querySelector(
-        "[data-wishpilot-add], #ProductGridContainer, .product-grid",
+  function nodeLooksLikeGridUpdate(node) {
+    if (!node || node.nodeType !== 1 && node.nodeType !== 11) return false;
+    if (node.nodeType === 11) {
+      return !!(
+        node.querySelector &&
+        node.querySelector(
+          "[data-wishpilot-add], #ProductGridContainer, #product-grid, .product-grid",
+        )
       );
     }
-    return false;
+    if (node.id === "ProductGridContainer" || node.id === "product-grid") {
+      return true;
+    }
+    if (
+      node.classList &&
+      (node.classList.contains("product-grid") ||
+        node.classList.contains("product-grid-container") ||
+        node.classList.contains("collection"))
+    ) {
+      return true;
+    }
+    if (node.matches && node.matches("[data-wishpilot-add]")) return true;
+    return !!(
+      node.querySelector &&
+      node.querySelector(
+        "[data-wishpilot-add], #ProductGridContainer, #product-grid, .product-grid",
+      )
+    );
   }
 
   function isProductGridAjaxUrl(url) {
     if (!url) return false;
     var href = String(url);
     if (href.indexOf("/apps/wish-pilot") !== -1) return false;
+    if (href.indexOf("/wishpilot/") !== -1) return false;
     return (
       href.indexOf("section_id=") !== -1 ||
       href.indexOf("sections=") !== -1 ||
@@ -482,19 +521,19 @@
       if (!el || !window.MutationObserver || el.__wishpilotObserved) return;
       el.__wishpilotObserved = true;
       new MutationObserver(function () {
-        // Dawn has just injected new product card HTML — apply in the same turn.
         onCollectionGridUpdated();
       }).observe(el, { childList: true, subtree: true });
     }
 
     observeGrid(findProductGridRoot());
 
+    // Re-bind if theme replaces the grid node; also catch any wishpilot buttons
     if (window.MutationObserver) {
       new MutationObserver(function (mutations) {
         for (var i = 0; i < mutations.length; i++) {
           var added = mutations[i].addedNodes;
           for (var j = 0; j < added.length; j++) {
-            if (nodeHasNewWishpilotButtons(added[j])) {
+            if (nodeLooksLikeGridUpdate(added[j])) {
               observeGrid(findProductGridRoot());
               onCollectionGridUpdated();
               return;
@@ -545,18 +584,37 @@
               : "";
         var promise = originalFetch.apply(this, arguments);
         if (isProductGridAjaxUrl(url)) {
-          // Fetch resolves before Dawn writes HTML — MutationObserver handles the
-          // real DOM update; this is a backup for late paints.
           promise.then(
             function () {
-              setTimeout(onCollectionGridUpdated, 0);
-              setTimeout(onCollectionGridUpdated, 100);
-              setTimeout(onCollectionGridUpdated, 300);
+              onCollectionGridUpdated();
             },
             function () {},
           );
         }
         return promise;
+      };
+    }
+
+    // Some themes still use XHR for facets
+    if (
+      typeof XMLHttpRequest !== "undefined" &&
+      !window.__wishpilotXhrPatched
+    ) {
+      window.__wishpilotXhrPatched = true;
+      var open = XMLHttpRequest.prototype.open;
+      var send = XMLHttpRequest.prototype.send;
+      XMLHttpRequest.prototype.open = function (method, url) {
+        this.__wishpilotUrl = url;
+        return open.apply(this, arguments);
+      };
+      XMLHttpRequest.prototype.send = function () {
+        var xhr = this;
+        if (isProductGridAjaxUrl(xhr.__wishpilotUrl)) {
+          xhr.addEventListener("load", function () {
+            onCollectionGridUpdated();
+          });
+        }
+        return send.apply(this, arguments);
       };
     }
 
@@ -582,10 +640,10 @@
       true,
     );
 
-    setInterval(reconcileLikedIcons, RECONCILE_MS);
+    // Safety net — if Dawn paints after our handlers, fix within ~150ms
+    setInterval(reconcileLikedIcons, 150);
   }
 
-  // Single delegated click listener — survives grid re-renders
   document.addEventListener("click", function (event) {
     var btn = event.target.closest("[data-wishpilot-add-btn]");
     if (!btn) return;
@@ -603,6 +661,7 @@
   });
 
   document.addEventListener("wishpilot:updated", function () {
+    // Merge from server without blocking UI; never wait to install watchers
     fetchWishlistFromServer({ boot: false });
   });
 
@@ -610,16 +669,19 @@
   window.WishPilot.refreshWishlist = function () {
     return fetchWishlistFromServer({ boot: true });
   };
-  window.WishPilot.version = "collection-sync-v4";
+  window.WishPilot.ids = function () {
+    hydrateIdsFromStorage();
+    return Object.keys(wishlistIds);
+  };
+  window.WishPilot.version = "collection-sync-v5";
 
   function boot() {
-    loadPersistedIds();
+    hydrateIdsFromStorage();
     applyWishlistState();
+    // CRITICAL: watchers must start even if wishlist API is slow/hanging
+    installGridWatchers();
     loadSettings().finally(function () {
-      fetchWishlistFromServer({ boot: true }).finally(function () {
-        installGridWatchers();
-        applyWishlistState();
-      });
+      fetchWishlistFromServer({ boot: true });
     });
   }
 

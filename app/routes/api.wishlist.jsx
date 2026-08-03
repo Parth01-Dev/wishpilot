@@ -47,11 +47,17 @@ export const loader = async ({ request }) => {
       );
     }
 
-    const resolvedCustomerId =
-      customerId ||
-      url.searchParams.get("logged_in_customer_id") ||
-      null;
-    const guestId = url.searchParams.get("guestId") || null;
+    const resolvedCustomerId = (() => {
+      const raw =
+        customerId || url.searchParams.get("logged_in_customer_id") || null;
+      if (!raw || !String(raw).trim()) return null;
+      return String(raw).trim();
+    })();
+    const guestId = (() => {
+      const raw = url.searchParams.get("guestId");
+      if (!raw || !String(raw).trim()) return null;
+      return String(raw).trim();
+    })();
 
     if (!resolvedCustomerId && !settings.allowGuestWishlist) {
       return Response.json(

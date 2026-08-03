@@ -21,22 +21,38 @@ export const DEFAULT_SETTINGS = {
  */
 export async function getShopSettings(shop) {
   const existing = await prisma.shopSettings.findUnique({ where: { shop } });
-  if (existing) return existing;
+  if (existing) return normalizeSettings(existing);
 
-  return prisma.shopSettings.create({
+  const created = await prisma.shopSettings.create({
     data: { shop, ...DEFAULT_SETTINGS },
   });
+  return normalizeSettings(created);
+}
+
+/**
+ * Ensure storefront/admin always receive real booleans for toggles.
+ */
+function normalizeSettings(settings) {
+  return {
+    ...settings,
+    enableWishlist: Boolean(settings.enableWishlist),
+    showHeartIcon: Boolean(settings.showHeartIcon),
+    allowGuestWishlist: Boolean(settings.allowGuestWishlist),
+    requireLoginForWishlistPage: Boolean(settings.requireLoginForWishlistPage),
+    showWishlistCount: Boolean(settings.showWishlistCount),
+  };
 }
 
 /**
  * Update shop settings (partial).
  */
 export async function updateShopSettings(shop, data) {
-  return prisma.shopSettings.upsert({
+  const updated = await prisma.shopSettings.upsert({
     where: { shop },
     create: { shop, ...DEFAULT_SETTINGS, ...data },
     update: data,
   });
+  return normalizeSettings(updated);
 }
 
 /**

@@ -40,17 +40,24 @@ export const loader = async ({ request }) => {
   return { settings, futureFeatures: FUTURE_FEATURES };
 };
 
+function formChecked(form, name) {
+  const value = form.get(name);
+  return value === "on" || value === "true" || value === "1";
+}
+
 export const action = async ({ request }) => {
   const { session } = await authenticate.admin(request);
   const form = await request.formData();
 
   const settings = await updateShopSettings(session.shop, {
-    enableWishlist: form.get("enableWishlist") === "on",
-    showHeartIcon: form.get("showHeartIcon") === "on",
-    allowGuestWishlist: form.get("allowGuestWishlist") === "on",
-    requireLoginForWishlistPage:
-      form.get("requireLoginForWishlistPage") === "on",
-    showWishlistCount: form.get("showWishlistCount") === "on",
+    enableWishlist: formChecked(form, "enableWishlist"),
+    showHeartIcon: formChecked(form, "showHeartIcon"),
+    allowGuestWishlist: formChecked(form, "allowGuestWishlist"),
+    requireLoginForWishlistPage: formChecked(
+      form,
+      "requireLoginForWishlistPage",
+    ),
+    showWishlistCount: formChecked(form, "showWishlistCount"),
     buttonStyle: String(form.get("buttonStyle") || "heart"),
     primaryColor: String(form.get("primaryColor") || "#000000"),
     buttonPosition: String(form.get("buttonPosition") || "product_form"),
@@ -409,6 +416,7 @@ function SettingToggle({
       <s-checkbox
         label={title}
         name={name}
+        value="on"
         labelAccessibilityVisibility="exclusive"
         {...(checked ? { checked: true } : {})}
       />

@@ -63,9 +63,15 @@ export const action = async ({ request }) => {
     price,
   } = body;
 
-  const customerId = bodyCustomerId || loggedInCustomerId || null;
+  const rawCustomerId = bodyCustomerId || loggedInCustomerId || null;
+  const customerId =
+    rawCustomerId && String(rawCustomerId).trim()
+      ? String(rawCustomerId).trim()
+      : null;
   const guestId =
-    !customerId && bodyGuestId ? String(bodyGuestId).trim() : null;
+    !customerId && bodyGuestId && String(bodyGuestId).trim()
+      ? String(bodyGuestId).trim()
+      : null;
 
   if (!productId) {
     return Response.json({ error: "productId is required" }, { status: 400 });

@@ -38,7 +38,7 @@ export const loader = async ({ params }) => {
       status: 200,
       headers: {
         "Content-Type": meta.type,
-        "Cache-Control": "public, max-age=60",
+        "Cache-Control": "public, max-age=60, must-revalidate",
         "Access-Control-Allow-Origin": "*",
       },
     });

@@ -1,5 +1,18 @@
 (function () {
-  if (window.__wishpilotAddBound) return;
+  // Expose immediately so console checks work even if init already ran.
+  window.WishPilot = window.WishPilot || {};
+  window.WishPilot.version = "collection-sync-v4";
+
+  if (window.__wishpilotAddBound) {
+    if (typeof window.WishPilot.reapplyWishlistState === "function") {
+      try {
+        window.WishPilot.reapplyWishlistState();
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    return;
+  }
   window.__wishpilotAddBound = true;
 
   /**
@@ -593,12 +606,11 @@
     fetchWishlistFromServer({ boot: false });
   });
 
-  window.WishPilot = window.WishPilot || {};
-  window.WishPilot.version = "collection-sync-v4";
   window.WishPilot.reapplyWishlistState = onCollectionGridUpdated;
   window.WishPilot.refreshWishlist = function () {
     return fetchWishlistFromServer({ boot: true });
   };
+  window.WishPilot.version = "collection-sync-v4";
 
   function boot() {
     loadPersistedIds();

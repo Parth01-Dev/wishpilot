@@ -371,44 +371,125 @@ export async function removeWishlistProduct(shop, productId) {
 }
 
 /**
- * Aggregate customers who have wishlist items.
+ * Aggregate customers or guests who have wishlist items.
+ * type: "registered" (customerId present) | "guest" (guestId present, no customerId)
  */
 export async function listWishlistCustomers(
   shop,
-  { page = 1, pageSize = 10, search = "" } = {},
+  { page = 1, pageSize = 10, search = "", type = "registered" } = {},
 ) {
-  const where = {
+  const tab = type === "guest" ? "guest" : "registered";
+  const term = search.trim();
+
+  const registeredWhere = {
+    shop,
+    customerId: { not: null },
+    ...(term
+      ? {
+          OR: [
+            { customerEmail: { contains: term, mode: "insensitive" } },
+            { customerId: { contains: term, mode: "insensitive" } },
+          ],
+        }
+      : {}),
+  };
+
+  const guestWhere = {
+    shop,
+    customerId: null,
+    AND: [
+      { guestId: { not: null } },
+      { NOT: { guestId: "" } },
+      ...(term
+        ? [{ guestId: { contains: term, mode: "insensitive" } }]
+        : []),
+    ],
+  };
+
+  const registeredCountWhere = {
     shop,
     customerId: { not: null },
   };
+  const guestCountWhere = {
+    shop,
+    customerId: null,
+    AND: [{ guestId: { not: null } }, { NOT: { guestId: "" } }],
+  };
 
-  if (search.trim()) {
-    where.OR = [
-      { customerEmail: { contains: search.trim(), mode: "insensitive" } },
-      { customerId: { contains: search.trim(), mode: "insensitive" } },
-    ];
+  const [registeredGrouped, guestGrouped] = await Promise.all([
+    prisma.wishlist.groupBy({
+      by: ["customerId", "customerEmail"],
+      where: registeredCountWhere,
+      _count: { id: true },
+      _max: { createdAt: true },
+      orderBy: { _max: { createdAt: "desc" } },
+    }),
+    prisma.wishlist.groupBy({
+      by: ["guestId"],
+      where: guestCountWhere,
+      _count: { id: true },
+      _max: { createdAt: true },
+      orderBy: { _max: { createdAt: "desc" } },
+    }),
+  ]);
+
+  const registeredTotal = registeredGrouped.length;
+  const guestTotal = guestGrouped.length;
+
+  let grouped;
+  if (tab === "guest") {
+    if (term) {
+      grouped = await prisma.wishlist.groupBy({
+        by: ["guestId"],
+        where: guestWhere,
+        _count: { id: true },
+        _max: { createdAt: true },
+        orderBy: { _max: { createdAt: "desc" } },
+      });
+    } else {
+      grouped = guestGrouped;
+    }
+  } else if (term) {
+    grouped = await prisma.wishlist.groupBy({
+      by: ["customerId", "customerEmail"],
+      where: registeredWhere,
+      _count: { id: true },
+      _max: { createdAt: true },
+      orderBy: { _max: { createdAt: "desc" } },
+    });
+  } else {
+    grouped = registeredGrouped;
   }
-
-  const grouped = await prisma.wishlist.groupBy({
-    by: ["customerId", "customerEmail"],
-    where,
-    _count: { id: true },
-    _max: { createdAt: true },
-    orderBy: { _max: { createdAt: "desc" } },
-  });
 
   const total = grouped.length;
   const skip = (Math.max(1, page) - 1) * pageSize;
-  const customers = grouped.slice(skip, skip + pageSize).map((row) => ({
-    customerId: row.customerId,
-    customerEmail: row.customerEmail,
-    wishlistCount: row._count.id,
-    lastWishlistDate: row._max.createdAt,
-  }));
+  const customers = grouped.slice(skip, skip + pageSize).map((row) => {
+    if (tab === "guest") {
+      return {
+        type: "guest",
+        customerId: null,
+        guestId: row.guestId,
+        customerEmail: null,
+        wishlistCount: row._count.id,
+        lastWishlistDate: row._max.createdAt,
+      };
+    }
+    return {
+      type: "registered",
+      customerId: row.customerId,
+      guestId: null,
+      customerEmail: row.customerEmail,
+      wishlistCount: row._count.id,
+      lastWishlistDate: row._max.createdAt,
+    };
+  });
 
   return {
     customers,
     total,
+    registeredTotal,
+    guestTotal,
+    type: tab,
     page,
     pageSize,
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
@@ -433,6 +514,23 @@ export async function getCustomerWishlist(shop, customerId) {
 }
 
 /**
+ * Wishlist items for a guest session.
+ */
+export async function getGuestWishlist(shop, guestId) {
+  const id = String(guestId || "").trim();
+  if (!id) return [];
+
+  return prisma.wishlist.findMany({
+    where: {
+      shop,
+      guestId: id,
+      customerId: null,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+/**
  * Remove all wishlist items for a customer.
  * Accepts numeric IDs or full Shopify Customer GIDs.
  */
@@ -444,6 +542,22 @@ export async function removeCustomerWishlist(shop, customerId) {
     where: {
       shop,
       customerId: { in: ids },
+    },
+  });
+}
+
+/**
+ * Remove all wishlist items for a guest session.
+ */
+export async function removeGuestWishlist(shop, guestId) {
+  const id = String(guestId || "").trim();
+  if (!id) return { count: 0 };
+
+  return prisma.wishlist.deleteMany({
+    where: {
+      shop,
+      guestId: id,
+      customerId: null,
     },
   });
 }

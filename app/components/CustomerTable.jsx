@@ -2,24 +2,41 @@ import { EmptyState } from "./EmptyState";
 import admin from "../styles/admin.module.css";
 
 /**
- * Customers list — clean Swish-like curation rows.
+ * Customers list — registered or guest wishlists.
  */
-export function CustomerTable({ customers = [], onOpen, onRemove }) {
+export function CustomerTable({
+  customers = [],
+  type = "registered",
+  onOpen,
+  onRemove,
+}) {
+  const isGuest = type === "guest";
+
   if (!customers.length) {
     return (
       <EmptyState
-        heading="No wishlist customers yet"
-        description="Customers appear here after they save products to their wishlist."
+        heading={
+          isGuest ? "No guest wishlists yet" : "No wishlist customers yet"
+        }
+        description={
+          isGuest
+            ? "Guests appear here after they save products without signing in."
+            : "Customers appear here after they save products to their wishlist."
+        }
       />
     );
   }
 
   return (
-    <s-section accessibilityLabel="Customers list">
+    <s-section
+      accessibilityLabel={isGuest ? "Guest wishlists list" : "Customers list"}
+    >
       <div className={admin.card}>
         <div className={admin.cardHead}>
           <div>
-            <h3 className={admin.cardTitle}>Customer wishlists</h3>
+            <h3 className={admin.cardTitle}>
+              {isGuest ? "Guest wishlists" : "Customer wishlists"}
+            </h3>
             <p className={admin.cardHint}>
               Open a list to review saved products
             </p>
@@ -27,23 +44,37 @@ export function CustomerTable({ customers = [], onOpen, onRemove }) {
         </div>
         <div className={admin.cardBody}>
           {customers.map((customer) => {
-            const idLabel =
-              customer.customerId?.replace("gid://shopify/Customer/", "") ||
-              "—";
-            const email = customer.customerEmail || "No email";
-            const initials = (customer.customerEmail || idLabel || "C")
-              .replace(/[^a-zA-Z0-9]/g, "")
-              .slice(0, 2)
-              .toUpperCase();
+            const rowKey = isGuest
+              ? customer.guestId
+              : customer.customerId;
+            const idLabel = isGuest
+              ? customer.guestId || "—"
+              : customer.customerId?.replace(
+                  "gid://shopify/Customer/",
+                  "",
+                ) || "—";
+            const title = isGuest
+              ? "Guest shopper"
+              : customer.customerEmail || "No email";
+            const metaLabel = isGuest
+              ? `Guest ID: ${idLabel}`
+              : `Customer ID: ${idLabel}`;
+            const initials = (
+              isGuest
+                ? "G"
+                : (customer.customerEmail || idLabel || "C")
+                    .replace(/[^a-zA-Z0-9]/g, "")
+                    .slice(0, 2)
+            ).toUpperCase();
 
             return (
-              <div key={customer.customerId} className={admin.customerRow}>
+              <div key={rowKey} className={admin.customerRow}>
                 <span className={admin.avatar} aria-hidden="true">
                   {initials}
                 </span>
                 <div>
-                  <p className={admin.demandTitle}>{email}</p>
-                  <p className={admin.demandMeta}>Customer ID: {idLabel}</p>
+                  <p className={admin.demandTitle}>{title}</p>
+                  <p className={admin.demandMeta}>{metaLabel}</p>
                 </div>
                 <div className={admin.demandCount}>
                   <p className={admin.demandCountStrong}>

@@ -1,7 +1,7 @@
 import admin from "../styles/admin.module.css";
 
 /**
- * Modal showing products a customer has saved to their wishlist.
+ * Modal showing products a customer or guest has saved to their wishlist.
  */
 export function CustomerWishlistModal({
   openCustomer,
@@ -11,11 +11,19 @@ export function CustomerWishlistModal({
 }) {
   const customer = openCustomer;
   const items = detail?.items || [];
+  const isGuest =
+    detail?.type === "guest" ||
+    (!!customer?.guestId && !customer?.customerId);
   const email =
-    detail?.customerEmail || customer?.customerEmail || "Customer wishlist";
-  const idLabel = String(
-    detail?.customerId || customer?.customerId || "",
-  ).replace("gid://shopify/Customer/", "");
+    detail?.customerEmail ||
+    customer?.customerEmail ||
+    (isGuest ? "Guest wishlist" : "Customer wishlist");
+  const idLabel = isGuest
+    ? String(detail?.guestId || customer?.guestId || "")
+    : String(detail?.customerId || customer?.customerId || "").replace(
+        "gid://shopify/Customer/",
+        "",
+      );
 
   return (
     <s-modal
@@ -32,14 +40,20 @@ export function CustomerWishlistModal({
         <s-stack gap="large">
           <s-stack direction="inline" gap="base" alignItems="center">
             <s-badge>{detail?.itemCount ?? items.length} products</s-badge>
-            {idLabel ? <s-text>Customer ID: {idLabel}</s-text> : null}
+            {idLabel ? (
+              <s-text>
+                {isGuest ? "Guest ID" : "Customer ID"}: {idLabel}
+              </s-text>
+            ) : null}
           </s-stack>
 
           <s-divider />
 
           {!items.length ? (
             <s-banner tone="info">
-              This customer has no products on their wishlist.
+              {isGuest
+                ? "This guest has no products on their wishlist."
+                : "This customer has no products on their wishlist."}
             </s-banner>
           ) : (
             <div className={admin.modalProductList}>

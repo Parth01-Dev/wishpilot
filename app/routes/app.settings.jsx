@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Form, useActionData, useLoaderData, useNavigation } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -10,6 +10,24 @@ import {
 import { FUTURE_FEATURES } from "../utils/futureFeatures";
 import { WISHLIST_CARD_SNIPPET } from "../utils/themeSnippet";
 import admin from "../styles/admin.module.css";
+
+const SETTINGS_FORM_ID = "wishpilot-settings-form";
+
+function submitSettingsForm() {
+  const form = document.getElementById(SETTINGS_FORM_ID);
+  if (form && typeof form.requestSubmit === "function") {
+    form.requestSubmit();
+    return;
+  }
+  form?.submit();
+}
+
+/** Notify Shopify data-save-bar that a programmatic control changed. */
+function markFormDirty(input) {
+  if (!input) return;
+  input.dispatchEvent(new Event("input", { bubbles: true }));
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+}
 
 const THEME_STEPS = [
   {
@@ -94,9 +112,8 @@ export default function SettingsPage() {
     <s-page heading="Settings">
       <s-button
         slot="primary-action"
-        type="submit"
-        form="wishpilot-settings-form"
         variant="primary"
+        onClick={submitSettingsForm}
         {...(isSaving ? { loading: true } : {})}
       >
         Save settings
@@ -115,10 +132,20 @@ export default function SettingsPage() {
         </div>
 
         <Form
-          id="wishpilot-settings-form"
+          id={SETTINGS_FORM_ID}
           method="post"
           data-save-bar
+          data-discard-confirmation
           className={admin.settingsForm}
+          key={[
+            current.enableWishlist,
+            current.showHeartIcon,
+            current.allowGuestWishlist,
+            current.showWishlistCount,
+            current.buttonStyle,
+            current.primaryColor,
+            current.buttonPosition,
+          ].join("|")}
         >
           <s-banner
             heading={
@@ -380,11 +407,29 @@ function SettingToggle({
   badge,
   badgeTone,
 }) {
+  const inputId = useId();
+  const hiddenRef = useRef(null);
   const [enabled, setEnabled] = useState(Boolean(checked));
 
   useEffect(() => {
     setEnabled(Boolean(checked));
+    if (hiddenRef.current) {
+      hiddenRef.current.value = checked ? "on" : "off";
+    }
   }, [checked]);
+
+  const toggle = useCallback(() => {
+    setEnabled((prev) => {
+      const next = !prev;
+      requestAnimationFrame(() => {
+        const input = hiddenRef.current;
+        if (!input) return;
+        input.value = next ? "on" : "off";
+        markFormDirty(input);
+      });
+      return next;
+    });
+  }, []);
 
   return (
     <div className={admin.settingsToggle}>
@@ -398,14 +443,20 @@ function SettingToggle({
         <p className={admin.settingsToggleDesc}>{description}</p>
       </div>
       {/* Always submit on/off — Polaris s-checkbox name/value is unreliable in RR forms */}
-      <input type="hidden" name={name} value={enabled ? "on" : "off"} />
+      <input
+        ref={hiddenRef}
+        id={inputId}
+        type="hidden"
+        name={name}
+        defaultValue={checked ? "on" : "off"}
+      />
       <s-checkbox
         label={title}
         labelAccessibilityVisibility="exclusive"
         checked={enabled}
         onClick={(event) => {
           event.preventDefault();
-          setEnabled((prev) => !prev);
+          toggle();
         }}
       />
     </div>

@@ -372,17 +372,8 @@
         return;
       }
 
-      var allowGuest = !!(settings && settings.allowGuestWishlist);
-      var requireLogin = !!(settings && settings.requireLoginForWishlistPage);
-
-      // Require login for page → guests must sign in to see the list
-      if (requireLogin) {
-        showLoginRequired();
-        return;
-      }
-
-      // Allow guest wishlist → guests can view their list without login
-      if (allowGuest) {
+      // Allow guest wishlist → guests can add and view without login
+      if (settings && settings.allowGuestWishlist) {
         guestId = getGuestId() || "";
         if (loginPrompt) loginPrompt.hidden = true;
         if (toolbar) toolbar.hidden = false;
@@ -390,7 +381,7 @@
         return;
       }
 
-      // Both off → login required (same as cannot view as guest)
+      // Guests disabled → login required
       showLoginRequired();
     }
 

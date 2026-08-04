@@ -53,10 +53,6 @@ export const action = async ({ request }) => {
     enableWishlist: formChecked(form, "enableWishlist"),
     showHeartIcon: formChecked(form, "showHeartIcon"),
     allowGuestWishlist: formChecked(form, "allowGuestWishlist"),
-    requireLoginForWishlistPage: formChecked(
-      form,
-      "requireLoginForWishlistPage",
-    ),
     showWishlistCount: formChecked(form, "showWishlistCount"),
     buttonStyle: String(form.get("buttonStyle") || "heart"),
     primaryColor: String(form.get("primaryColor") || "#000000"),
@@ -164,15 +160,9 @@ export default function SettingsPage() {
                 />
                 <SettingToggle
                   title="Allow guest wishlist"
-                  description="When on, shoppers can save products and view their wishlist page without signing in. If this and “Require login for Wishlist page” are both off, shoppers must sign in to add items."
+                  description="When on, guests can add products and view their wishlist page without signing in. When off, shoppers must sign in to use the wishlist."
                   name="allowGuestWishlist"
                   checked={current.allowGuestWishlist}
-                />
-                <SettingToggle
-                  title="Require customer login to view Wishlist page"
-                  description="When on, guests must sign in to open the wishlist page and see their list. Guest saves still merge into their account after login."
-                  name="requireLoginForWishlistPage"
-                  checked={current.requireLoginForWishlistPage}
                 />
                 <SettingToggle
                   title="Show wishlist count"
@@ -350,21 +340,9 @@ export default function SettingsPage() {
               <div className={admin.metaItem}>
                 <dt>Guests</dt>
                 <dd>
-                  {!current.allowGuestWishlist
-                    ? "Login required to add"
-                    : current.requireLoginForWishlistPage
-                      ? "Can save (login to view page)"
-                      : "Can save & view wishlist"}
-                </dd>
-              </div>
-              <div className={admin.metaItem}>
-                <dt>Wishlist page login</dt>
-                <dd>
-                  {current.requireLoginForWishlistPage
-                    ? "Required to view page"
-                    : current.allowGuestWishlist
-                      ? "Guests can open page"
-                      : "Login required"}
+                  {current.allowGuestWishlist
+                    ? "Can save & view wishlist"
+                    : "Login required"}
                 </dd>
               </div>
               <div className={admin.metaItem}>

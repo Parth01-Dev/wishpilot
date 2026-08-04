@@ -9,7 +9,6 @@ export const DEFAULT_SETTINGS = {
   enableWishlist: true,
   showHeartIcon: true,
   allowGuestWishlist: false,
-  requireLoginForWishlistPage: false,
   buttonStyle: "heart",
   primaryColor: "#000000",
   buttonPosition: "product_form",
@@ -38,7 +37,6 @@ function normalizeSettings(settings) {
     enableWishlist: Boolean(settings.enableWishlist),
     showHeartIcon: Boolean(settings.showHeartIcon),
     allowGuestWishlist: Boolean(settings.allowGuestWishlist),
-    requireLoginForWishlistPage: Boolean(settings.requireLoginForWishlistPage),
     showWishlistCount: Boolean(settings.showWishlistCount),
   };
 }

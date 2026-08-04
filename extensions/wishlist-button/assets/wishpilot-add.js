@@ -1,8 +1,10 @@
 (function () {
+  var VERSION = "guest-allow-v4";
   window.WishPilot = window.WishPilot || {};
-  window.WishPilot.version = "guest-merge-v3";
+  window.WishPilot.version = VERSION;
 
-  if (window.__wishpilotAddBound) {
+  // Newer hosted script must win over a stale theme-extension copy.
+  if (window.__wishpilotAddVersion === VERSION) {
     if (typeof window.WishPilot.reapplyWishlistState === "function") {
       try {
         window.WishPilot.reapplyWishlistState();
@@ -12,20 +14,21 @@
     }
     return;
   }
+  window.__wishpilotAddVersion = VERSION;
   window.__wishpilotAddBound = true;
 
   /**
-   * guest-merge-v3
-   * - Guest add works when Allow guest is ON (do not block while settings load)
-   * - Merge guest wishlist into customer account after login (deduped)
-   * - Install grid watchers immediately (do not wait on API)
-   * - Always re-read wishlist IDs from localStorage before applying is-active
-   * - Re-apply after Dawn filter/sort DOM updates
+   * guest-allow-v4
+   * - Allow guest wishlist when merchant setting is ON
+   * - Robust guest id (localStorage → sessionStorage → cookie → memory)
+   * - Merge guest wishlist into customer account after login
+   * - Newer script version replaces older binders
    */
   var PROXY_BASE = "/apps/wish-pilot";
   var GUEST_KEY = "wishpilot_guest_id";
   var CACHE_KEY = "wishpilot_wishlist_ids";
   var POP_MS = 380;
+  var memoryGuestId = null;
 
   var settingsCache = null;
   var wishlistIds = Object.create(null);
@@ -75,36 +78,112 @@
     }, 2500);
   }
 
-  function getGuestId() {
+  function readCookie(name) {
     try {
-      var existing = localStorage.getItem(GUEST_KEY);
-      if (existing) return existing;
-      var id =
-        "guest_" +
-        Date.now().toString(36) +
-        "_" +
-        Math.random().toString(36).slice(2, 10);
-      localStorage.setItem(GUEST_KEY, id);
-      return id;
+      var match = document.cookie.match(
+        new RegExp(
+          "(?:^|; )" + name.replace(/[$()*+.?[\\\]^{|}]/g, "\\$&") + "=([^;]*)",
+        ),
+      );
+      return match ? decodeURIComponent(match[1]) : null;
     } catch (e) {
       return null;
     }
+  }
+
+  function writeCookie(name, value) {
+    try {
+      document.cookie =
+        name +
+        "=" +
+        encodeURIComponent(value) +
+        "; path=/; max-age=31536000; SameSite=Lax";
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function createGuestId() {
+    return (
+      "guest_" +
+      Date.now().toString(36) +
+      "_" +
+      Math.random().toString(36).slice(2, 10)
+    );
   }
 
   function peekGuestId() {
     try {
-      return localStorage.getItem(GUEST_KEY);
+      var fromLs = localStorage.getItem(GUEST_KEY);
+      if (fromLs) return fromLs;
     } catch (e) {
-      return null;
+      /* ignore */
     }
+    try {
+      var fromSs = sessionStorage.getItem(GUEST_KEY);
+      if (fromSs) return fromSs;
+    } catch (e) {
+      /* ignore */
+    }
+    var fromCookie = readCookie(GUEST_KEY);
+    if (fromCookie) return fromCookie;
+    return memoryGuestId;
+  }
+
+  function persistGuestId(id) {
+    if (!id) return;
+    memoryGuestId = id;
+    try {
+      localStorage.setItem(GUEST_KEY, id);
+    } catch (e) {
+      /* ignore */
+    }
+    try {
+      sessionStorage.setItem(GUEST_KEY, id);
+    } catch (e) {
+      /* ignore */
+    }
+    writeCookie(GUEST_KEY, id);
+  }
+
+  function getGuestId() {
+    var existing = peekGuestId();
+    if (existing) {
+      persistGuestId(existing);
+      return existing;
+    }
+    var id = createGuestId();
+    persistGuestId(id);
+    return id;
   }
 
   function clearGuestId() {
+    memoryGuestId = null;
     try {
       localStorage.removeItem(GUEST_KEY);
     } catch (e) {
       /* ignore */
     }
+    try {
+      sessionStorage.removeItem(GUEST_KEY);
+    } catch (e) {
+      /* ignore */
+    }
+    try {
+      document.cookie = GUEST_KEY + "=; path=/; max-age=0; SameSite=Lax";
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function isGuestWishlistBlocked(settings) {
+    if (!settings) return false;
+    return (
+      settings.allowGuestWishlist === false ||
+      settings.allowGuestWishlist === "false" ||
+      settings.allowGuestWishlist === 0 ||
+      settings.allowGuestWishlist === "0"
+    );
   }
 
   function getCustomerMeta() {
@@ -305,7 +384,7 @@
       return { customerId: meta.customerId, guestId: null };
     }
     // Block guests only when settings explicitly disallow them
-    if (settingsCache && settingsCache.allowGuestWishlist === false) {
+    if (isGuestWishlistBlocked(settingsCache)) {
       return null;
     }
     // Allowed, or settings not loaded yet (API enforces LOGIN_REQUIRED)
@@ -408,7 +487,7 @@
     if (customerId) return { customerId: customerId, guestId: "" };
     // Only require login when merchant explicitly disabled guest wishlist.
     // If settings are still loading, allow guest and let the API enforce.
-    if (settingsCache && settingsCache.allowGuestWishlist === false) {
+    if (isGuestWishlistBlocked(settingsCache)) {
       return { customerId: "", guestId: "", loginRequired: true };
     }
     var guestId = getGuestId();
@@ -708,21 +787,25 @@
     setInterval(reconcileLikedIcons, 150);
   }
 
-  document.addEventListener("click", function (event) {
+  if (window.__wishpilotClickHandler) {
+    document.removeEventListener("click", window.__wishpilotClickHandler, true);
+  }
+  window.__wishpilotClickHandler = function (event) {
     var btn = event.target.closest("[data-wishpilot-add-btn]");
     if (!btn) return;
     var root = btn.closest("[data-wishpilot-add]");
     if (!root) return;
     event.preventDefault();
-    event.stopPropagation();
+    event.stopImmediatePropagation();
 
     var run = function () {
       if (btn.classList.contains("is-active")) removeFromWishlist(root, btn);
       else addToWishlist(root, btn);
     };
-    // Always refresh settings so Allow guest / login toggles apply immediately
+    // Always refresh settings so Allow guest toggle applies immediately
     loadSettings().finally(run);
-  });
+  };
+  document.addEventListener("click", window.__wishpilotClickHandler, true);
 
   document.addEventListener("wishpilot:updated", function () {
     // Merge from server without blocking UI; never wait to install watchers
@@ -737,7 +820,7 @@
     hydrateIdsFromStorage();
     return Object.keys(wishlistIds);
   };
-  window.WishPilot.version = "guest-merge-v3";
+  window.WishPilot.version = VERSION;
 
   function boot() {
     hydrateIdsFromStorage();

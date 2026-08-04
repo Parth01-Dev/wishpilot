@@ -1,35 +1,102 @@
 (function () {
   var PROXY_BASE = "/apps/wish-pilot";
   var GUEST_KEY = "wishpilot_guest_id";
+  var memoryGuestId = null;
   var mergeAttempted = false;
 
-  function getGuestId() {
+  function readCookie(name) {
     try {
-      var existing = localStorage.getItem(GUEST_KEY);
-      if (existing) return existing;
-      var id =
-        "guest_" +
-        Date.now().toString(36) +
-        "_" +
-        Math.random().toString(36).slice(2, 10);
-      localStorage.setItem(GUEST_KEY, id);
-      return id;
+      var match = document.cookie.match(
+        new RegExp(
+          "(?:^|; )" + name.replace(/[$()*+.?[\\\]^{|}]/g, "\\$&") + "=([^;]*)",
+        ),
+      );
+      return match ? decodeURIComponent(match[1]) : null;
     } catch (e) {
       return null;
     }
+  }
+
+  function writeCookie(name, value) {
+    try {
+      document.cookie =
+        name +
+        "=" +
+        encodeURIComponent(value) +
+        "; path=/; max-age=31536000; SameSite=Lax";
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function createGuestId() {
+    return (
+      "guest_" +
+      Date.now().toString(36) +
+      "_" +
+      Math.random().toString(36).slice(2, 10)
+    );
   }
 
   function peekGuestId() {
     try {
-      return localStorage.getItem(GUEST_KEY);
+      var fromLs = localStorage.getItem(GUEST_KEY);
+      if (fromLs) return fromLs;
     } catch (e) {
-      return null;
+      /* ignore */
     }
+    try {
+      var fromSs = sessionStorage.getItem(GUEST_KEY);
+      if (fromSs) return fromSs;
+    } catch (e) {
+      /* ignore */
+    }
+    var fromCookie = readCookie(GUEST_KEY);
+    if (fromCookie) return fromCookie;
+    return memoryGuestId;
+  }
+
+  function persistGuestId(id) {
+    if (!id) return;
+    memoryGuestId = id;
+    try {
+      localStorage.setItem(GUEST_KEY, id);
+    } catch (e) {
+      /* ignore */
+    }
+    try {
+      sessionStorage.setItem(GUEST_KEY, id);
+    } catch (e) {
+      /* ignore */
+    }
+    writeCookie(GUEST_KEY, id);
+  }
+
+  function getGuestId() {
+    var existing = peekGuestId();
+    if (existing) {
+      persistGuestId(existing);
+      return existing;
+    }
+    var id = createGuestId();
+    persistGuestId(id);
+    return id;
   }
 
   function clearGuestId() {
+    memoryGuestId = null;
     try {
       localStorage.removeItem(GUEST_KEY);
+    } catch (e) {
+      /* ignore */
+    }
+    try {
+      sessionStorage.removeItem(GUEST_KEY);
+    } catch (e) {
+      /* ignore */
+    }
+    try {
+      document.cookie = GUEST_KEY + "=; path=/; max-age=0; SameSite=Lax";
     } catch (e) {
       /* ignore */
     }

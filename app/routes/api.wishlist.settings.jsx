@@ -1,6 +1,18 @@
 import { authenticate } from "../shopify.server";
 import { getShopSettings } from "../services/wishlist.server";
 
+function publicSettings(settings) {
+  return {
+    enableWishlist: Boolean(settings.enableWishlist),
+    showHeartIcon: Boolean(settings.showHeartIcon),
+    allowGuestWishlist: Boolean(settings.allowGuestWishlist),
+    showWishlistCount: Boolean(settings.showWishlistCount),
+    primaryColor: settings.primaryColor || "#000000",
+    buttonStyle: settings.buttonStyle || "heart",
+    buttonPosition: settings.buttonPosition || "product_form",
+  };
+}
+
 /**
  * Public app-proxy settings for the theme extension.
  * GET /apps/wish-pilot/settings (proxied) → /api/wishlist/settings
@@ -15,13 +27,13 @@ export const loader = async ({ request }) => {
     }
 
     const settings = await getShopSettings(shop);
-    return Response.json({ ok: true, settings });
+    return Response.json({ ok: true, settings: publicSettings(settings) });
   } catch {
     // Allow admin-authenticated reads too
     try {
       const { session } = await authenticate.admin(request);
       const settings = await getShopSettings(session.shop);
-      return Response.json({ ok: true, settings });
+      return Response.json({ ok: true, settings: publicSettings(settings) });
     } catch {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }

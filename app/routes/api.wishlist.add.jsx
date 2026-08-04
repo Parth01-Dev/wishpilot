@@ -77,14 +77,14 @@ export const action = async ({ request }) => {
     return Response.json({ error: "productId is required" }, { status: 400 });
   }
 
-  if (!customerId && !settings.allowGuestWishlist) {
+  if (!customerId && !Boolean(settings.allowGuestWishlist)) {
     return Response.json(
       { error: "Login required", code: "LOGIN_REQUIRED" },
       { status: 401 },
     );
   }
 
-  if (!customerId && settings.allowGuestWishlist && !guestId) {
+  if (!customerId && Boolean(settings.allowGuestWishlist) && !guestId) {
     return Response.json(
       { error: "guestId is required for guest wishlist", code: "GUEST_ID_REQUIRED" },
       { status: 400 },

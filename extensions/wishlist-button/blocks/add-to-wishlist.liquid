@@ -1,6 +1,7 @@
 {% comment %}
   WishPilot — Add to Wishlist product block.
   Merchants drag this onto the product template.
+  JS is loaded by the WishPilot app embed (enable in Theme → App embeds).
 {% endcomment %}
 
 {% assign button_color = block.settings.button_color | default: '#000000' %}
@@ -39,7 +40,6 @@
   "name": "Add to Wishlist",
   "target": "section",
   "stylesheet": "wishpilot.css",
-  "javascript": "wishpilot-add.js",
   "enabled_on": {
     "templates": ["product", "collection"]
   },

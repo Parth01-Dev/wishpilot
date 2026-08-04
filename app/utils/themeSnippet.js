@@ -12,13 +12,13 @@ export const WISHLIST_CARD_SNIPPET = `{% comment %}
 {% endcomment %}
 {% unless wishpilot_assets_included %}
   {% assign wishpilot_assets_included = true %}
-  <link rel="stylesheet" href="${APP_ORIGIN}/wishpilot/add.css" media="all">
+  <link rel="stylesheet" href="${APP_ORIGIN}/wishpilot/add.css?v=guest-allow-v4" media="all">
   <script>
     (function () {
       if (window.__wishpilotScriptRequested) return;
       window.__wishpilotScriptRequested = true;
       var s = document.createElement("script");
-      s.src = "${APP_ORIGIN}/wishpilot/add.js";
+      s.src = "${APP_ORIGIN}/wishpilot/add.js?v=guest-allow-v4";
       s.defer = true;
       document.head.appendChild(s);
     })();
